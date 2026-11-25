@@ -1242,6 +1242,7 @@ h1 {
 
   var snake, dir, queue, foods, chaser, score, eaten, best;
   var tailPrev = null;   // cell the tail just left (for smooth drawing)
+  var lastStep = null;   // undo info of the last straight step (for late turns)
   var eatenGhost = null; // apple eaten this step, drawn until the head reaches it
   var portals = null; // [{x,y}, {x,y}] or null
   var portalCooldown = 0;
@@ -1496,6 +1497,7 @@ h1 {
   function reset() {
     snake = [{ x: 10, y: 10 }, { x: 9, y: 10 }, { x: 8, y: 10 }];
     tailPrev = { x: 7, y: 10 };
+    lastStep = null;
     eatenGhost = null;
     headAngVis = null;
     dir = { x: 1, y: 0 };
@@ -1645,7 +1647,9 @@ h1 {
   /* ---------- game step ---------- */
 
   function step() {
-    if (queue.length) dir = queue.shift();
+    var usedQueue = queue.length > 0;
+    lastStep = null;
+    if (usedQueue) dir = queue.shift();
     var head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
     if (wrapMode) {
       head.x = (head.x + N) % N;
@@ -1699,8 +1703,33 @@ h1 {
       updateHud();
     } else {
       tailPrev = snake.pop();
+      // a plain straight step can still be redone as a turn for a moment (see graceTurn)
+      if (!usedQueue && !(portals && portalCooldown > 0)) lastStep = { tail: tailPrev };
     }
     if (chaser && chaserHit()) gameOver(false, true);
+  }
+
+  // The snake is drawn up to one step behind the game logic. A turn pressed right after a step
+  // is therefore meant for the cell the player still sees the head on: redo that step as a turn.
+  var GRACE = 0.35;
+  function graceTurn(nx, ny) {
+    if (!lastStep || queue.length || acc > tickMs * GRACE) return false;
+    var from = snake[1];
+    var h = { x: from.x + nx, y: from.y + ny };
+    if (wrapMode) {
+      h.x = (h.x + N) % N;
+      h.y = (h.y + N) % N;
+    } else if (h.x < 0 || h.y < 0 || h.x >= N || h.y >= N) return false;
+    var body = snake.slice(1);
+    body.push(lastStep.tail);
+    var food = false;
+    for (var f = 0; f < foods.length; f++) if (foods[f].x === h.x && foods[f].y === h.y) food = true;
+    var lim = food ? body.length : body.length - 1;
+    for (var i = 0; i < lim; i++) if (body[i].x === h.x && body[i].y === h.y) return false;
+    snake = body;
+    queue = [{ x: nx, y: ny }];
+    step();
+    return true;
   }
 
   // one loop for everything: game logic only while playing, drawing always so animated colours keep moving
@@ -1725,6 +1754,7 @@ h1 {
     if (state !== 'playing') return;
     var ref = queue.length ? queue[queue.length - 1] : dir;
     if ((nx === ref.x && ny === ref.y) || (nx === -ref.x && ny === -ref.y)) return;
+    if (graceTurn(nx, ny)) return;
     if (queue.length < 2) queue.push({ x: nx, y: ny });
   }
 
@@ -1845,7 +1875,7 @@ h1 {
     if (headAngVis === null || state !== 'playing') headAngVis = target;
     else {
       var diff = Math.atan2(Math.sin(target - headAngVis), Math.cos(target - headAngVis));
-      headAngVis += diff * (1 - Math.exp(-dtDraw / Math.max(18, tickMs * 0.22)));
+      headAngVis += diff * (1 - Math.exp(-dtDraw / Math.max(14, tickMs * 0.14)));
     }
     var headDir = { x: Math.cos(headAngVis), y: Math.sin(headAngVis) };
     function rad(k) { return cell * radUnits(k, len); }
