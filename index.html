@@ -1241,6 +1241,8 @@ h1 {
   };
 
   var snake, dir, queue, foods, chaser, score, eaten, best;
+  var tailPrev = null;   // cell the tail just left (for smooth drawing)
+  var eatenGhost = null; // apple eaten this step, drawn until the head reaches it
   var portals = null; // [{x,y}, {x,y}] or null
   var portalCooldown = 0;
   var particles = [];
@@ -1493,6 +1495,9 @@ h1 {
 
   function reset() {
     snake = [{ x: 10, y: 10 }, { x: 9, y: 10 }, { x: 8, y: 10 }];
+    tailPrev = { x: 7, y: 10 };
+    eatenGhost = null;
+    headAngVis = null;
     dir = { x: 1, y: 0 };
     queue = [];
     score = 0;
@@ -1675,14 +1680,17 @@ h1 {
       if (snake[i].x === head.x && snake[i].y === head.y) { gameOver(false); return; }
     }
     snake.unshift(head);
+    eatenGhost = null;
     if (eating) {
       foods.splice(fi, 1);
       score += 10;
       eaten += 1;
       tickMs = speedFor(level());
       fillFoods();
-      var cellE = cvs.width / N;
-      spawnParticles((head.x + 0.5) * cellE, (head.y + 0.5) * cellE, C.food, 14, 2.6);
+      // tail stays put this step; the apple stays visible until the drawn head reaches it
+      var tl = snake[snake.length - 1];
+      tailPrev = { x: tl.x, y: tl.y };
+      eatenGhost = { x: head.x, y: head.y, popped: false };
       stats.apples += 1;
       saveStats();
       run.score = score; run.len = snake.length; run.level = level();
@@ -1690,7 +1698,7 @@ h1 {
       if (!foods.length) { updateHud(); gameOver(true); return; }
       updateHud();
     } else {
-      snake.pop();
+      tailPrev = snake.pop();
     }
     if (chaser && chaserHit()) gameOver(false, true);
   }
@@ -1725,25 +1733,128 @@ h1 {
   // grid distance between neighbours, folded back to -1..1 when the snake wraps around an edge
   function norm(d) { return d > 1 ? -1 : (d < -1 ? 1 : d); }
 
+  /* ---------- smooth movement ---------- */
+
+  // how far the current step has progressed (0..1); the snake is drawn between its last and current cells
+  function renderAlpha() {
+    if (state === 'playing' || state === 'paused') return clamp(acc / tickMs, 0, 1);
+    return 1;
+  }
+
+  // unit step between neighbouring cells, folded across open walls; null for a jump (portal)
+  function stepDelta(a, b) {
+    var dx = fold(b.x - a.x), dy = fold(b.y - a.y);
+    if (Math.abs(dx) + Math.abs(dy) !== 1) return null;
+    return { x: dx, y: dy };
+  }
+
+  // Lays the body out along the path head -> tail. Segment i sits i cells behind the head,
+  // and every corner is replaced by a quarter circle so the segments turn gradually.
+  // Returns positions in grid units (unwrapped) and unit vectors pointing toward the head.
+  function bodyLayout(alpha) {
+    var len = snake.length;
+    var cells = snake.concat([tailPrev || snake[len - 1]]);
+    var Q = [], L = [], jump = [], D = [];
+    var j, d;
+    Q[1] = { x: cells[1].x, y: cells[1].y };
+    for (j = 1; j < cells.length - 1; j++) {
+      var a = cells[j], b = cells[j + 1];
+      d = stepDelta(a, b);
+      L[j] = 1;
+      if (d) { Q[j + 1] = { x: Q[j].x + d.x, y: Q[j].y + d.y }; jump[j] = false; D[j] = d; }
+      else if (a.x === b.x && a.y === b.y) { Q[j + 1] = { x: Q[j].x, y: Q[j].y }; jump[j] = false; D[j] = null; }
+      else { Q[j + 1] = { x: b.x, y: b.y }; jump[j] = true; D[j] = null; }
+    }
+    d = stepDelta(cells[1], cells[0]);
+    L[0] = alpha;
+    if (d) {
+      // path runs from head toward tail, so edge 0 points from the head back to cell 1
+      Q[0] = { x: Q[1].x + d.x * alpha, y: Q[1].y + d.y * alpha };
+      jump[0] = false; D[0] = { x: -d.x, y: -d.y };
+    } else {
+      Q[0] = { x: cells[0].x, y: cells[0].y };
+      jump[0] = true; D[0] = null;
+    }
+
+    // corner radius per vertex (0 = sharp / none)
+    var R = [0];
+    for (j = 1; j < len; j++) {
+      var din = D[j - 1], dout = D[j];
+      if (!din || !dout || jump[j - 1] || jump[j] || (din.x === dout.x && din.y === dout.y)) { R[j] = 0; continue; }
+      R[j] = Math.min(0.5, L[j - 1], L[j]);
+    }
+    R[len] = 0;
+
+    function corner(v, w) {
+      var r = R[v], a = D[v - 1], b = D[v], V = Q[v];
+      var th = (w + r) / (2 * r) * Math.PI / 2;
+      var c = Math.cos(th), s = Math.sin(th);
+      return {
+        x: V.x - a.x * r + b.x * r - b.x * r * c + a.x * r * s,
+        y: V.y - a.y * r + b.y * r - b.y * r * c + a.y * r * s,
+        tx: a.x * c + b.x * s,
+        ty: a.y * c + b.y * s
+      };
+    }
+
+    var pos = [], toHead = [];
+    var e = 0, start = 0;
+    var lastT = D[0] || (D[1] || { x: -1, y: 0 });
+    for (var i = 0; i < len; i++) {
+      var sd = i;
+      while (e < L.length - 1 && sd > start + L[e] + 1e-9) { start += L[e]; e++; }
+      var u = sd - start;
+      var p;
+      if (R[e + 1] > 0 && u > L[e] - R[e + 1]) p = corner(e + 1, u - L[e]);
+      else if (R[e] > 0 && u < R[e]) p = corner(e, u);
+      else if (jump[e]) {
+        var A = (L[e] > 0 && u / L[e] >= 0.5) ? Q[e + 1] : Q[e];
+        p = { x: A.x, y: A.y, tx: lastT.x, ty: lastT.y };
+      } else {
+        var f = L[e] > 0 ? u / L[e] : 0;
+        var dd = D[e] || lastT;
+        p = { x: Q[e].x + (Q[e + 1].x - Q[e].x) * f, y: Q[e].y + (Q[e + 1].y - Q[e].y) * f, tx: dd.x, ty: dd.y };
+      }
+      lastT = { x: p.tx, y: p.ty };
+      pos.push({ x: p.x, y: p.y });
+      toHead.push({ x: -p.tx, y: -p.ty });
+    }
+    return { pos: pos, toHead: toHead };
+  }
+
+  // wrap an unwrapped grid coordinate back onto the board
+  function onBoard(v) { return ((v + 0.5) % N + N) % N - 0.5; }
+
+  var headAngVis = null, lastDrawT = 0;
+
   var SEG_CACHE = {};
   function drawSnake(cell) {
     var sk = SKINS[skinKey];
     var now = performance.now();
     var len = snake.length;
     var i;
+    var lay = bodyLayout(renderAlpha());
     var pts = [];
     for (i = 0; i < len; i++) {
-      pts.push({ x: (snake[i].x + 0.5) * cell, y: (snake[i].y + 0.5) * cell });
+      pts.push({ x: (onBoard(lay.pos[i].x) + 0.5) * cell, y: (onBoard(lay.pos[i].y) + 0.5) * cell });
     }
+    // head turns smoothly instead of snapping by 90 degrees
+    var target = Math.atan2(lay.toHead[0].y, lay.toHead[0].x);
+    var dtDraw = Math.min(100, now - lastDrawT);
+    lastDrawT = now;
+    if (headAngVis === null || state !== 'playing') headAngVis = target;
+    else {
+      var diff = Math.atan2(Math.sin(target - headAngVis), Math.cos(target - headAngVis));
+      headAngVis += diff * (1 - Math.exp(-dtDraw / Math.max(18, tickMs * 0.22)));
+    }
+    var headDir = { x: Math.cos(headAngVis), y: Math.sin(headAngVis) };
     function rad(k) { return cell * radUnits(k, len); }
     function px(v) { return Math.round(v); }
 
-    // direction from segment i toward previous (toward head)
+    // direction from segment i toward the head (smooth through corners)
     function segDir(i) {
-      if (i === 0) return { x: dir.x, y: dir.y };
-      var dx = norm(snake[i - 1].x - snake[i].x);
-      var dy = norm(snake[i - 1].y - snake[i].y);
-      return { x: dx, y: dy };
+      if (i === 0) return headDir;
+      return lay.toHead[i];
     }
 
     if (sk.kind === 'metash') { drawMetash(); return; }
@@ -2023,7 +2134,7 @@ h1 {
     // ========== HEAD (detailed like reference) ==========
     ctx.save();
     ctx.translate(pts[0].x, pts[0].y);
-    ctx.rotate(Math.atan2(dir.y, dir.x));
+    ctx.rotate(headAngVis);
     var palH = palette(0);
     var hr = cell * 0.48;
 
@@ -2438,6 +2549,21 @@ h1 {
       ctx.beginPath();
       ctx.arc((foods[f].x + 0.5) * cell, (foods[f].y + 0.5) * cell, cell * 0.3, 0, TAU);
       ctx.fill();
+    }
+    // the apple just eaten shrinks away as the drawn head arrives, then bursts
+    if (eatenGhost && (state === 'playing' || state === 'paused')) {
+      var ga = renderAlpha();
+      var gx = (eatenGhost.x + 0.5) * cell, gy = (eatenGhost.y + 0.5) * cell;
+      var gs = clamp((1 - ga) / 0.4, 0, 1);
+      if (gs > 0) {
+        ctx.beginPath();
+        ctx.arc(gx, gy, cell * 0.3 * gs, 0, TAU);
+        ctx.fill();
+      }
+      if (ga > 0.75 && !eatenGhost.popped) {
+        eatenGhost.popped = true;
+        spawnParticles(gx, gy, C.food, 14, 2.6);
+      }
     }
     ctx.restore();
 
