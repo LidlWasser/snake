@@ -3506,14 +3506,18 @@ h1 {
   ];
   // Startzeit jeder Zeile in Sekunden. Wird nach dem Timing fest eingetragen;
   // bis dahin gilt das lokal aufgenommene Timing (localStorage).
-  var TIMES = [13.24, 16.31, 19.88, 21.79, 23.53, 28.75, 32.24, 33.52, 37.25, 40.69, 45.58, 50.04, 52, 55.59, 61.18, 63.8, 67.01, 69.7, 71.64, 73.92];
+  // Um eine Zeile verschoben: jede Zeile startet dort, wo vorher die Zeile davor eingetragen war.
+  // Der Start der ersten Zeile (10.5) ist geschätzt.
+  var TIMES = [10.5, 13.24, 16.31, 19.88, 21.79, 23.53, 28.75, 32.24, 33.52, 37.25, 40.69, 45.58, 50.04, 52, 55.59, 61.18, 63.8, 67.01, 69.7, 71.64];
+  var TIMES_ID = 2; // hochzählen, wenn TIMES geändert wird: ältere lokale Aufnahmen werden dann ignoriert
   var MAX_SHOW = 7; // Zeile höchstens so viele Sekunden zeigen (Instrumental-Pausen)
 
   var TKEY = 'snake_lyrics_times', SKEY = 'snake_lyrics_on';
   function loadTimes() {
+    // a local recording only wins if it was made for the current built-in timing
     try {
       var t = JSON.parse(localStorage.getItem(TKEY));
-      if (Array.isArray(t) && t.length === LINES.length) return t;
+      if (t && t.v === TIMES_ID && Array.isArray(t.t) && t.t.length === LINES.length) return t.t;
     } catch (e) {}
     return TIMES;
   }
@@ -3605,7 +3609,7 @@ h1 {
       return;
     }
     times = rec.slice();
-    try { localStorage.setItem(TKEY, JSON.stringify(times)); } catch (e) {}
+    try { localStorage.setItem(TKEY, JSON.stringify({ v: TIMES_ID, t: times })); } catch (e) {}
     renderSettings();
     out.value = JSON.stringify(times);
     out.hidden = false;
