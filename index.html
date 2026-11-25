@@ -702,6 +702,45 @@ h1 {
 .ach-desc { color: var(--muted); font-size: 0.8125rem; line-height: 1.35; }
 .ach-rew { font: 700 0.8125rem var(--font-mono); color: var(--food); white-space: nowrap; }
 
+/* song subtitles: fixed height so the board does not jump */
+.lyric {
+  margin: 0;
+  min-height: 2.9em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font: 700 0.9375rem/1.35 var(--font-display);
+  color: var(--fg);
+  opacity: 0;
+  transition: opacity 0.15s;
+  text-wrap: balance;
+}
+.lyric.on { opacity: 1; }
+.lyr-box {
+  display: grid;
+  gap: 2px;
+  margin: 12px 0 8px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border-radius: 10px;
+}
+.lyr-cur { margin: 0 0 8px; color: var(--muted); min-height: 1.5em; }
+.lyr-next { margin: 0; font: 700 1.05rem/1.35 var(--font-display); min-height: 2.7em; }
+.lyr-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.lyr-btns .btn, .lyr-btns .hs-btn { flex: 1; }
+#lyrMark { flex: 2; min-height: 56px; font-size: 1.15rem; }
+.lyr-out {
+  width: 100%;
+  margin-top: 10px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--fg);
+  font: 500 0.75rem var(--font-mono);
+}
+
 /* toast */
 .toasts {
   position: fixed;
@@ -784,6 +823,8 @@ h1 {
     <div class="stat"><span class="label">Tempo</span><span class="value" id="level">1</span></div>
   </section>
 
+  <p class="lyric" id="lyricLine" aria-live="off"></p>
+
   <div class="board-wrap" id="boardWrap">
     <canvas id="board" role="img" aria-label="Spielfeld mit 20 mal 20 Feldern"></canvas>
     <div class="overlay" id="overlay">
@@ -826,6 +867,14 @@ h1 {
         <input type="range" id="sfxVol" min="0" max="100" step="5" value="70">
       </div>
       <div class="set-row">
+        <div class="set-head">
+          <span>Untertitel zum Lied</span>
+          <button class="hs-btn" id="lyricsBtn" type="button" aria-pressed="true">An</button>
+        </div>
+        <span class="ach-desc" id="lyricsHint"></span>
+        <div><button class="hs-btn" id="lyricsTime" type="button">Timing aufnehmen</button></div>
+      </div>
+      <div class="set-row">
         <span>Spielstand</span>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="hs-btn" id="saveExport" type="button">Exportieren</button>
@@ -844,6 +893,30 @@ h1 {
       <p class="ach-sum" id="achSum"></p>
       <ul class="ach-list" id="achList"></ul>
       <button class="btn hs-close" id="achClose" type="button">Schließen</button>
+    </div>
+  </div>
+
+  <div class="hs-panel" id="lyrPanel" hidden role="dialog" aria-labelledby="lyrTitle">
+    <div class="hs-card">
+      <h2 id="lyrTitle">Untertitel-Timing</h2>
+      <p class="ach-desc">1. „Lied starten“ drücken. 2. Immer wenn die angezeigte nächste Zeile beginnt: „Jetzt!“ tippen (oder Leertaste). Vertippt? „Zurück“ (oder Rücktaste).</p>
+      <div class="lyr-box">
+        <span class="label">Gerade</span>
+        <p class="lyr-cur" id="lyrCur">–</p>
+        <span class="label">Als Nächstes</span>
+        <p class="lyr-next" id="lyrNext"></p>
+      </div>
+      <p class="ach-desc" id="lyrCount"></p>
+      <div class="lyr-btns">
+        <button class="hs-btn" id="lyrStart" type="button">Lied starten</button>
+        <button class="btn" id="lyrMark" type="button">Jetzt!</button>
+        <button class="hs-btn" id="lyrUndo" type="button">Zurück</button>
+      </div>
+      <textarea class="lyr-out" id="lyrOut" rows="3" readonly hidden></textarea>
+      <div class="lyr-btns">
+        <button class="hs-btn" id="lyrSave" type="button">Speichern</button>
+        <button class="btn hs-close" id="lyrClose" type="button" style="margin-top:0">Schließen</button>
+      </div>
     </div>
   </div>
 
@@ -3395,6 +3468,167 @@ h1 {
 
   label();
   play();
+
+  // shared with the subtitles script
+  window.snakeMusic = {
+    audio: audio,
+    isOn: function () { return on; },
+    turnOn: function () { if (!on) btn.click(); else play(); }
+  };
+})();
+</script>
+
+<script>
+/* ---------- Untertitel zum Lied ---------- */
+(function () {
+  // Zeilen des Liedtexts (eigenes Lied)
+  var LINES = [
+    'Levin, du Hurensohn!',
+    'Wenn du mich noch einmal tötest,',
+    'dann würde ich deine Scheiß haus komplett sprengen, okay?',
+    'Es ist wirklich letzte Verwarnung.',
+    'Lass mich in Ruhe, ich habe dir nichts getan!',
+    'Hurensohn, Hurensohn, deine Scheiß haus!',
+    'Lass mich in Ruhe, ich habe dir nichts getan, du Hurensohn!',
+    'Deine Scheiß haus.',
+    'Wenn du mich noch einmal tötest komplett, komplett sprengen, okay?',
+    'Deine Scheiß haus, lass mich lass mich in Ruhe, ich habe dir nichts getan.',
+    'Hurensohn, Hurensohn, suah ßieiscH enieD,',
+    'Hurensohn, suah ßieiscH enieD Hurensohn,',
+    'levin du Hurensohn!',
+    'Wenn du mich noch einmal tötest, wenn du mich noch einmal tötest,',
+    'noch einmal tötest, dann, dann würde ich dein Scheiß haus komplett sprengen, okay?',
+    'Hurensohn, deine Scheiß haus komplett sprengen, okay?',
+    'Hurensohn, Hurensohn, Hurensohn!',
+    'levin, du Hurensohn!',
+    'Levin, du Hurensohn!',
+    'Dein Scheiß haus kommt sprengen, okay?'
+  ];
+  // Startzeit jeder Zeile in Sekunden. Wird nach dem Timing fest eingetragen;
+  // bis dahin gilt das lokal aufgenommene Timing (localStorage).
+  var TIMES = null;
+  var MAX_SHOW = 7; // Zeile höchstens so viele Sekunden zeigen (Instrumental-Pausen)
+
+  var TKEY = 'snake_lyrics_times', SKEY = 'snake_lyrics_on';
+  function loadTimes() {
+    try {
+      var t = JSON.parse(localStorage.getItem(TKEY));
+      if (Array.isArray(t) && t.length === LINES.length) return t;
+    } catch (e) {}
+    return TIMES;
+  }
+  var times = loadTimes();
+  var show = true;
+  try { if (localStorage.getItem(SKEY) === '0') show = false; } catch (e) {}
+
+  var lineEl = document.getElementById('lyricLine');
+  var toggle = document.getElementById('lyricsBtn');
+  var hint = document.getElementById('lyricsHint');
+
+  function renderSettings() {
+    toggle.textContent = show ? 'An' : 'Aus';
+    toggle.setAttribute('aria-pressed', show ? 'true' : 'false');
+    hint.textContent = times ? 'Timing vorhanden. Du kannst es jederzeit neu aufnehmen.' : 'Noch kein Timing – nimm es einmal auf, dann laufen die Untertitel mit.';
+    lineEl.hidden = !(show && times);
+  }
+  toggle.addEventListener('click', function () {
+    show = !show;
+    try { localStorage.setItem(SKEY, show ? '1' : '0'); } catch (e) {}
+    renderSettings();
+  });
+  renderSettings();
+
+  function lineAt(t) {
+    if (!times) return -1;
+    var idx = -1;
+    for (var i = 0; i < times.length; i++) if (times[i] <= t) idx = i;
+    if (idx < 0) return -1;
+    var end = idx + 1 < times.length ? times[idx + 1] : times[idx] + MAX_SHOW;
+    return t < Math.min(end, times[idx] + MAX_SHOW) ? idx : -1;
+  }
+
+  var shown = -2;
+  function tick() {
+    var m = window.snakeMusic;
+    var idx = -1;
+    if (m && show && times && m.isOn() && !m.audio.paused) idx = lineAt(m.audio.currentTime);
+    if (idx !== shown) {
+      shown = idx;
+      lineEl.textContent = idx >= 0 ? LINES[idx] : '';
+      lineEl.classList.toggle('on', idx >= 0);
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+
+  /* ----- Timing-Werkzeug: bei jeder neuen Zeile einmal tippen ----- */
+  var panel = document.getElementById('lyrPanel');
+  var curEl = document.getElementById('lyrCur');
+  var nextEl = document.getElementById('lyrNext');
+  var countEl = document.getElementById('lyrCount');
+  var markBtn = document.getElementById('lyrMark');
+  var out = document.getElementById('lyrOut');
+  var rec = [];
+
+  function renderRec() {
+    var i = rec.length;
+    countEl.textContent = i + ' / ' + LINES.length + ' Zeilen gesetzt';
+    curEl.textContent = i > 0 ? LINES[i - 1] : '–';
+    nextEl.textContent = i < LINES.length ? LINES[i] : 'Fertig! Drück auf „Speichern“.';
+    markBtn.disabled = i >= LINES.length;
+  }
+  function openTool() {
+    document.getElementById('setPanel').hidden = true;
+    rec = [];
+    out.hidden = true;
+    renderRec();
+    panel.hidden = false;
+  }
+  function startSong() {
+    var m = window.snakeMusic;
+    rec = [];
+    renderRec();
+    m.turnOn();
+    m.audio.currentTime = 0;
+    var p = m.audio.play();
+    if (p && p.catch) p.catch(function () {});
+  }
+  function mark() {
+    var m = window.snakeMusic;
+    if (rec.length >= LINES.length || m.audio.paused) return;
+    rec.push(Math.round(m.audio.currentTime * 100) / 100);
+    renderRec();
+  }
+  function save() {
+    if (rec.length !== LINES.length) {
+      countEl.textContent = 'Erst alle ' + LINES.length + ' Zeilen setzen (' + rec.length + ' gesetzt).';
+      return;
+    }
+    times = rec.slice();
+    try { localStorage.setItem(TKEY, JSON.stringify(times)); } catch (e) {}
+    renderSettings();
+    out.value = JSON.stringify(times);
+    out.hidden = false;
+    out.select();
+    countEl.textContent = 'Gespeichert. Kopiere die Zahlen unten und schick sie mir, dann baue ich sie fest ein.';
+  }
+
+  document.getElementById('lyricsTime').addEventListener('click', openTool);
+  document.getElementById('lyrStart').addEventListener('click', startSong);
+  markBtn.addEventListener('click', mark);
+  document.getElementById('lyrUndo').addEventListener('click', function () { rec.pop(); renderRec(); });
+  document.getElementById('lyrSave').addEventListener('click', save);
+  document.getElementById('lyrClose').addEventListener('click', function () { panel.hidden = true; });
+
+  // während das Werkzeug offen ist: Leertaste/Enter setzen die Zeile, das Spiel bekommt die Tasten nicht
+  document.addEventListener('keydown', function (e) {
+    if (panel.hidden) return;
+    if (e.target && e.target.tagName === 'TEXTAREA') return;
+    if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); mark(); }
+    else if (e.code === 'Backspace') { e.preventDefault(); rec.pop(); renderRec(); }
+    else if (e.code === 'Escape') panel.hidden = true;
+    e.stopPropagation();
+  }, true);
 })();
 </script>
 
