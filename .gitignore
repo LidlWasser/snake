@@ -1,0 +1,6 @@
+﻿# lokale Claude-Einstellungen
+.claude/
+
+# exportierte Spielstände (privat)
+snake-spielstand-*.json
+
