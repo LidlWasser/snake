@@ -819,6 +819,13 @@ h1 {
         <input type="range" id="musicVol" min="0" max="100" step="5" value="60">
       </div>
       <div class="set-row">
+        <div class="set-head">
+          <label for="sfxVol">Soundeffekte</label>
+          <span class="set-val" id="sfxVolVal">70 %</span>
+        </div>
+        <input type="range" id="sfxVol" min="0" max="100" step="5" value="70">
+      </div>
+      <div class="set-row">
         <span>Spielstand</span>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="hs-btn" id="saveExport" type="button">Exportieren</button>
@@ -1195,6 +1202,7 @@ h1 {
     var inp = document.querySelector('input[name="skin"][value="' + key + '"]');
     if (inp) { inp.checked = true; inp.dispatchEvent(new Event('change')); }
     toast('<b>' + SKINS[key].name + '</b> freigeschaltet');
+    sfx('buy');
     checkAchievements();
   });
   refreshLocks();
@@ -1313,6 +1321,138 @@ h1 {
   });
   function playerName() { return nameInput.value.trim().slice(0, 16) || 'Spieler'; }
 
+  /* ---------- sound effects (synthesised, no files) ---------- */
+
+  var sfxVol = 70;
+  try {
+    var sv0 = parseInt(localStorage.getItem('snake_sfx_vol'), 10);
+    if (!isNaN(sv0)) sfxVol = clamp(sv0, 0, 100);
+  } catch (e) { /* ignore */ }
+  var actx = null, sfxOut = null, lastPop = 0;
+
+  function audio() {
+    if (!actx) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      actx = new AC();
+      sfxOut = actx.createGain();
+      sfxOut.connect(actx.destination);
+    }
+    if (actx.state === 'suspended') actx.resume();
+    sfxOut.gain.value = (sfxVol / 100) * 0.9;
+    return actx;
+  }
+  // browsers only allow sound after a user gesture: unlock on the first one
+  ['pointerdown', 'keydown', 'touchstart'].forEach(function (ev) {
+    document.addEventListener(ev, function () { if (sfxVol > 0) audio(); }, { capture: true, passive: true });
+  });
+  document.addEventListener('visibilitychange', function () {
+    if (!actx) return;
+    if (document.hidden) actx.suspend(); else actx.resume();
+  });
+
+  // one oscillator note with a quick attack and exponential fade, optional pitch slide
+  function tone(freq, dur, type, vol, slideTo, delay) {
+    var a = actx;
+    var t = a.currentTime + (delay || 0);
+    var o = a.createOscillator(), g = a.createGain();
+    o.type = type || 'square';
+    o.frequency.setValueAtTime(freq, t);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(sfxOut);
+    o.start(t); o.stop(t + dur + 0.02);
+  }
+  // filtered noise burst (pops, whooshes, thuds)
+  function noise(dur, vol, ftype, freq, freqTo, delay) {
+    var a = actx;
+    var t = a.currentTime + (delay || 0);
+    var len = Math.max(1, Math.floor(a.sampleRate * dur));
+    var buf = a.createBuffer(1, len, a.sampleRate), d = buf.getChannelData(0);
+    for (var i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    var src = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+    src.buffer = buf;
+    f.type = ftype || 'lowpass';
+    f.frequency.setValueAtTime(freq || 1200, t);
+    if (freqTo) f.frequency.exponentialRampToValueAtTime(freqTo, t + dur);
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f); f.connect(g); g.connect(sfxOut);
+    src.start(t); src.stop(t + dur + 0.02);
+  }
+
+  function sfx(name, arg) {
+    if (sfxVol <= 0 || !audio()) return;
+    switch (name) {
+      case 'eat': {
+        var up = Math.min(12, (arg || 1) - 1) * 18; // a little higher with every speed level
+        tone(520 + up, 0.07, 'square', 0.18, 880 + up);
+        tone(880 + up, 0.06, 'triangle', 0.12, null, 0.05);
+        break;
+      }
+      case 'ice':
+        [1319, 1760, 2093, 2637].forEach(function (f, i) { tone(f, 0.12, 'triangle', 0.14, null, i * 0.05); });
+        noise(0.25, 0.05, 'highpass', 5000, null, 0.02);
+        break;
+      case 'buy':
+        tone(988, 0.08, 'square', 0.14);
+        tone(1319, 0.28, 'square', 0.14, null, 0.08);
+        break;
+      case 'achievement':
+        [523, 659, 784, 1047].forEach(function (f, i) { tone(f, 0.16, 'triangle', 0.18, null, i * 0.09); });
+        tone(1568, 0.3, 'sine', 0.08, null, 0.36);
+        break;
+      case 'start':
+        [392, 523, 659].forEach(function (f, i) { tone(f, 0.09, 'square', 0.1, null, i * 0.06); });
+        break;
+      case 'death':
+        tone(440, 0.55, 'sawtooth', 0.16, 70);
+        noise(0.35, 0.18, 'lowpass', 1800, 200);
+        break;
+      case 'pop': {
+        var nowP = actx.currentTime;
+        if (nowP - lastPop < 0.03) return; // long snakes: don't stack hundreds of pops
+        lastPop = nowP;
+        noise(0.06, 0.12, 'bandpass', 900 + Math.random() * 1400);
+        break;
+      }
+      case 'win':
+        [523, 659, 784, 1047, 784, 1047].forEach(function (f, i) { tone(f, 0.18, 'square', 0.12, null, i * 0.11); });
+        break;
+      case 'warn':
+        tone(880, 0.08, 'square', 0.12);
+        tone(880, 0.08, 'square', 0.12, null, 0.14);
+        break;
+      case 'dash':
+        noise(0.35, 0.16, 'bandpass', 400, 2600);
+        break;
+      case 'stomp':
+        tone(130, 0.45, 'sine', 0.4, 38);
+        noise(0.3, 0.25, 'lowpass', 600, 80);
+        break;
+      case 'mud':
+        tone(220, 0.16, 'sine', 0.18, 80);
+        noise(0.12, 0.06, 'lowpass', 500, null, 0.02);
+        break;
+    }
+  }
+
+  var sfxSlider = document.getElementById('sfxVol');
+  var sfxVolVal = document.getElementById('sfxVolVal');
+  sfxSlider.value = sfxVol;
+  sfxVolVal.textContent = sfxVol + ' %';
+  var sfxPreviewT = 0;
+  sfxSlider.addEventListener('input', function () {
+    sfxVol = parseInt(sfxSlider.value, 10) || 0;
+    sfxVolVal.textContent = sfxVol + ' %';
+    try { localStorage.setItem('snake_sfx_vol', String(sfxVol)); } catch (e) { /* ignore */ }
+    // short preview so the new volume can be heard
+    clearTimeout(sfxPreviewT);
+    sfxPreviewT = setTimeout(function () { sfx('eat', 1); }, 120);
+  });
+
   /* ---------- toasts ---------- */
 
   var toastsEl = document.getElementById('toasts');
@@ -1370,6 +1510,7 @@ h1 {
       changed = true;
       addCoins(a.reward);
       toast('🏆 Erfolg: <b>' + a.name + '</b> · +' + a.reward + ' Münzen');
+      sfx('achievement');
     });
     if (changed) {
       lsSet('snake-ach', achDone);
@@ -1543,6 +1684,7 @@ h1 {
     stats.modes[mode] = true;
     saveStats();
     run.score = 0; run.len = snake.length; run.level = 1; run.mode = mode; run.wrap = wrapMode;
+    sfx('start');
     checkAchievements();
   }
 
@@ -1577,8 +1719,10 @@ h1 {
     run.score = score; run.len = snake.length; run.level = level();
     checkAchievements();
     if (won) {
+      sfx('win');
       showOverlay(title, text, 'Nochmal');
     } else {
+      sfx('death');
       // death animation: flash red, then burst segment by segment; the result panel follows
       var per = Math.min(70, 1200 / snake.length);
       deathAnim = { t0: performance.now(), alpha: frozenAlpha, per: per, popped: 0, done: false };
@@ -1733,10 +1877,12 @@ h1 {
     if (mode === 'mika') {
       if (boss.phase === 'chase' && gameTime >= boss.next) {
         boss = { phase: 'warn', until: gameTime + 700 };
+        sfx('warn');
       } else if (boss.phase === 'warn' && gameTime >= boss.until) {
         var dx = fold(snake[0].x - chaser.x), dy = fold(snake[0].y - chaser.y);
         var d = Math.sqrt(dx * dx + dy * dy) || 1;
         boss = { phase: 'dash', until: gameTime + 900, dx: dx / d, dy: dy / d };
+        sfx('dash');
       } else if (boss.phase === 'dash') {
         if (Math.random() < 0.6) spawnParticles((chaser.x + 0.5) * cell, (chaser.y + 0.5) * cell, hsl((gameTime / 4) % 360, 90, 62), 1, 0.8);
         if (gameTime >= boss.until) boss = { phase: 'tired', until: gameTime + 1300 };
@@ -1752,15 +1898,17 @@ h1 {
       while (puddles.length && gameTime - puddles[0].born > PUDDLE_LIFE) puddles.shift();
       for (var p = 0; p < puddles.length; p++) {
         if (gameTime - puddles[p].born > 400 && headDist(puddles[p].x, puddles[p].y) < 0.85) {
-          if (gameTime >= slowUntil) spawnParticles((snake[0].x + 0.5) * cell, (snake[0].y + 0.5) * cell, '#6b4423', 8, 1.6);
+          if (gameTime >= slowUntil) { spawnParticles((snake[0].x + 0.5) * cell, (snake[0].y + 0.5) * cell, '#6b4423', 8, 1.6); sfx('mud'); }
           slowDown(1300, 1.6);
         }
       }
       // stomp: wind-up, then a shockwave ring
       if (boss.phase === 'chase' && gameTime >= boss.next) {
         boss = { phase: 'stomp', until: gameTime + 900 };
+        sfx('warn');
       } else if (boss.phase === 'stomp' && gameTime >= boss.until) {
         wave = { x: chaser.x, y: chaser.y, born: gameTime, hit: false };
+        sfx('stomp');
         shake = Math.max(shake, 0.5);
         spawnParticles((chaser.x + 0.5) * cell, (chaser.y + 0.5) * cell, '#8a5a2b', 24, 3.2);
         boss = { phase: 'chase', next: gameTime + 8500 + Math.random() * 3500 };
@@ -1774,6 +1922,7 @@ h1 {
         if (Math.abs(headDist(wave.x, wave.y) - wr) < 0.55) {
           wave.hit = true;
           slowDown(2200, 1.9);
+          sfx('mud');
           shake = Math.max(shake, 0.6);
         }
       }
@@ -1786,6 +1935,7 @@ h1 {
 
   // eating the ice apple (called from step)
   function eatIce() {
+    sfx('ice');
     lastIceCell = { x: iceApple.x, y: iceApple.y, t: gameTime };
     score += 20;
     frozenUntil = gameTime + 3500;
@@ -2059,6 +2209,7 @@ h1 {
         var colP = sk.glow || (kP === 0 ? headColor(sk, now) : bodyColor(sk, kP, len, now));
         spawnParticles(pts[kP].x, pts[kP].y, colP, kP === 0 ? 18 : 9, kP === 0 ? 3 : 2.3);
         spawnParticles(pts[kP].x, pts[kP].y, '#ff5d73', 4, 1.8);
+        sfx('pop');
       }
       firstAlive = popN;
       flash = 0.5 + 0.5 * Math.sin(el / 45);
@@ -2918,6 +3069,7 @@ h1 {
       if (ga > 0.75 && !eatenGhost.popped) {
         eatenGhost.popped = true;
         spawnParticles(gx, gy, C.food, 14, 2.6);
+        sfx('eat', level());
       }
     }
     ctx.restore();

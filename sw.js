@@ -1,6 +1,6 @@
-/* Service Worker: macht Snake offline spielbar.
-   Nach Änderungen am Spiel VERSION hochzählen, damit Handys die neue Version laden. */
-var VERSION = 'snake-v3';
+﻿/* Service Worker: macht Snake offline spielbar.
+   Nach Ã„nderungen am Spiel VERSION hochzÃ¤hlen, damit Handys die neue Version laden. */
+var VERSION = 'snake-v4';
 var CORE = [
   './',
   './index.html',
@@ -29,7 +29,7 @@ self.addEventListener('fetch', function (e) {
   var req = e.request;
   if (req.method !== 'GET') return;
 
-  // Die Seite selbst: erst Netz (für Updates), offline aus dem Cache
+  // Die Seite selbst: erst Netz (fÃ¼r Updates), offline aus dem Cache
   if (req.mode === 'navigate') {
     e.respondWith(
       fetch(req).then(function (res) {
@@ -41,7 +41,7 @@ self.addEventListener('fetch', function (e) {
     return;
   }
 
-  // Musik: Audio fragt Teilstücke (Range) an, die beantworten wir aus der gecachten Datei
+  // Musik: Audio fragt TeilstÃ¼cke (Range) an, die beantworten wir aus der gecachten Datei
   var range = req.headers.get('range');
   if (range && /\.ogg$/.test(new URL(req.url).pathname)) {
     e.respondWith(
