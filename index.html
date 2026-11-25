@@ -1230,13 +1230,13 @@ h1 {
       apples: 1,
       chaser: true,
       portals: false,
-      text: 'Mika folgt dir langsam und wird mit der Zeit schneller. Berührt Mika dich, ist das Spiel vorbei.'
+      text: 'Mika jagt dich. Zeigt Mika ein rotes „!“, kommt ein Sprint geradeaus – weich aus! Danach ist Mika kurz müde. Ein Eis-Apfel friert Mika ein.'
     },
     metash: {
       apples: 1,
       chaser: true,
       portals: false,
-      text: 'Metash ist ein großer brauner Ball, der dir langsam folgt und immer schneller wird. Berührt er dich, ist das Spiel vorbei.'
+      text: 'Metash rollt dir hinterher und hinterlässt Schlammpfützen, die dich bremsen. Beim roten „!“ stampft er – die Schockwelle macht dich langsam. Ein Eis-Apfel friert ihn ein.'
     }
   };
 
@@ -1499,6 +1499,7 @@ h1 {
     snake = [{ x: 10, y: 10 }, { x: 9, y: 10 }, { x: 8, y: 10 }];
     tailPrev = { x: 7, y: 10 };
     lastStep = null;
+    resetBoss();
     deathAnim = null;
     clearTimeout(deathTimer);
     eatenGhost = null;
@@ -1644,20 +1645,158 @@ h1 {
   }
 
   function moveChaser(seconds) {
+    if (chaserFrozen()) return; // frozen by an ice apple: harmless and still
     var h = snake[0];
     var dx = fold(h.x - chaser.x);
     var dy = fold(h.y - chaser.y);
     var dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist > 0.001) {
-      var stepLen = Math.min(dist, chaserSpeed() * seconds);
+    var sp = chaserSpeed();
+    if (boss.phase === 'warn' || boss.phase === 'stomp') sp = 0;
+    else if (boss.phase === 'tired') sp *= 0.4;
+    if (boss.phase === 'dash') {
+      // Mika's sprint: straight line, no steering
+      chaser.x += boss.dx * sp * 3.2 * seconds;
+      chaser.y += boss.dy * sp * 3.2 * seconds;
+    } else if (dist > 0.001) {
+      var stepLen = Math.min(dist, sp * seconds);
       chaser.x += dx / dist * stepLen;
       chaser.y += dy / dist * stepLen;
     }
     if (wrapMode) {
       chaser.x = (chaser.x + N) % N;
       chaser.y = (chaser.y + N) % N;
+    } else {
+      chaser.x = clamp(chaser.x, 0, N - 1);
+      chaser.y = clamp(chaser.y, 0, N - 1);
     }
     if (chaserHit()) gameOver(false, true);
+  }
+
+  /* ---------- chaser modes: sprints, mud, stomps, ice apples ---------- */
+
+  var gameTime = 0;              // ms of actual play (stops while paused)
+  var boss = { phase: 'chase' }; // chase | warn | dash | tired (Mika) · chase | stomp (Metash)
+  var puddles = [];              // Metash mud: {x, y, born}
+  var wave = null;               // Metash shockwave: {x, y, born, hit}
+  var iceApple = null;           // {x, y, until}
+  var nextIce = 0, nextPuddle = 0;
+  var slowUntil = 0, slowMul = 1, frozenUntil = 0;
+
+  var PUDDLE_LIFE = 7000, WAVE_TIME = 900, WAVE_MAX = 6.5;
+
+  function chaserFrozen() { return gameTime < frozenUntil; }
+  function slowFactor() { return gameTime < slowUntil ? slowMul : 1; }
+  function slowDown(ms, mul) {
+    slowMul = gameTime >= slowUntil ? mul : Math.max(slowMul, mul);
+    slowUntil = Math.max(slowUntil, gameTime + ms);
+  }
+
+  function resetBoss() {
+    gameTime = 0;
+    boss = { phase: 'chase', next: 5000 + Math.random() * 2500 };
+    puddles = [];
+    wave = null;
+    iceApple = null;
+    nextIce = 9000;
+    nextPuddle = 1500;
+    slowUntil = 0; slowMul = 1; frozenUntil = 0;
+  }
+
+  function freeCell() {
+    var taken = {}, i;
+    for (i = 0; i < snake.length; i++) taken[snake[i].x + ',' + snake[i].y] = true;
+    for (i = 0; i < foods.length; i++) taken[foods[i].x + ',' + foods[i].y] = true;
+    var free = [];
+    for (var y = 1; y < N - 1; y++) for (var x = 1; x < N - 1; x++) if (!taken[x + ',' + y]) free.push({ x: x, y: y });
+    return free.length ? free[Math.floor(Math.random() * free.length)] : null;
+  }
+
+  function headDist(px, py) {
+    var h = snake[0];
+    var dx = fold(h.x - px), dy = fold(h.y - py);
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  // called every frame while a chaser mode is played
+  function updateBoss(dt) {
+    var cell = cvs.width / N;
+    // ice apple appears now and then, and melts after a while
+    if (!iceApple && gameTime >= nextIce) {
+      var c = freeCell();
+      if (c) iceApple = { x: c.x, y: c.y, until: gameTime + 7000 };
+      nextIce = gameTime + 13000 + Math.random() * 5000;
+    }
+    if (iceApple && gameTime > iceApple.until) iceApple = null;
+
+    if (chaserFrozen()) return;
+
+    if (mode === 'mika') {
+      if (boss.phase === 'chase' && gameTime >= boss.next) {
+        boss = { phase: 'warn', until: gameTime + 700 };
+      } else if (boss.phase === 'warn' && gameTime >= boss.until) {
+        var dx = fold(snake[0].x - chaser.x), dy = fold(snake[0].y - chaser.y);
+        var d = Math.sqrt(dx * dx + dy * dy) || 1;
+        boss = { phase: 'dash', until: gameTime + 900, dx: dx / d, dy: dy / d };
+      } else if (boss.phase === 'dash') {
+        if (Math.random() < 0.6) spawnParticles((chaser.x + 0.5) * cell, (chaser.y + 0.5) * cell, hsl((gameTime / 4) % 360, 90, 62), 1, 0.8);
+        if (gameTime >= boss.until) boss = { phase: 'tired', until: gameTime + 1300 };
+      } else if (boss.phase === 'tired' && gameTime >= boss.until) {
+        boss = { phase: 'chase', next: gameTime + 4500 + Math.random() * 3500 };
+      }
+    } else if (mode === 'metash') {
+      // mud trail
+      if (gameTime >= nextPuddle) {
+        puddles.push({ x: chaser.x, y: chaser.y, born: gameTime });
+        nextPuddle = gameTime + 1700;
+      }
+      while (puddles.length && gameTime - puddles[0].born > PUDDLE_LIFE) puddles.shift();
+      for (var p = 0; p < puddles.length; p++) {
+        if (gameTime - puddles[p].born > 400 && headDist(puddles[p].x, puddles[p].y) < 0.85) {
+          if (gameTime >= slowUntil) spawnParticles((snake[0].x + 0.5) * cell, (snake[0].y + 0.5) * cell, '#6b4423', 8, 1.6);
+          slowDown(1300, 1.6);
+        }
+      }
+      // stomp: wind-up, then a shockwave ring
+      if (boss.phase === 'chase' && gameTime >= boss.next) {
+        boss = { phase: 'stomp', until: gameTime + 900 };
+      } else if (boss.phase === 'stomp' && gameTime >= boss.until) {
+        wave = { x: chaser.x, y: chaser.y, born: gameTime, hit: false };
+        shake = Math.max(shake, 0.5);
+        spawnParticles((chaser.x + 0.5) * cell, (chaser.y + 0.5) * cell, '#8a5a2b', 24, 3.2);
+        boss = { phase: 'chase', next: gameTime + 8500 + Math.random() * 3500 };
+      }
+    }
+    if (wave) {
+      var age = gameTime - wave.born;
+      if (age > WAVE_TIME) wave = null;
+      else if (!wave.hit) {
+        var wr = WAVE_MAX * age / WAVE_TIME;
+        if (Math.abs(headDist(wave.x, wave.y) - wr) < 0.55) {
+          wave.hit = true;
+          slowDown(2200, 1.9);
+          shake = Math.max(shake, 0.6);
+        }
+      }
+    }
+  }
+
+  // a step that ate the ice apple must not be redone by a late turn
+  var lastIceCell = null;
+  function iceEatenThisStep(h) { return lastIceCell && lastIceCell.x === h.x && lastIceCell.y === h.y && lastIceCell.t === gameTime; }
+
+  // eating the ice apple (called from step)
+  function eatIce() {
+    lastIceCell = { x: iceApple.x, y: iceApple.y, t: gameTime };
+    score += 20;
+    frozenUntil = gameTime + 3500;
+    boss = mode === 'mika'
+      ? { phase: 'chase', next: frozenUntil + 3000 }
+      : { phase: 'chase', next: Math.max(boss.next || 0, frozenUntil + 2000) };
+    var cell = cvs.width / N;
+    spawnParticles((iceApple.x + 0.5) * cell, (iceApple.y + 0.5) * cell, '#8ceeff', 20, 3);
+    if (chaser) spawnParticles((chaser.x + 0.5) * cell, (chaser.y + 0.5) * cell, '#eaffff', 16, 2.4);
+    iceApple = null;
+    updateHud();
   }
 
   /* ---------- game step ---------- */
@@ -1701,6 +1840,7 @@ h1 {
     }
     snake.unshift(head);
     eatenGhost = null;
+    if (iceApple && iceApple.x === head.x && iceApple.y === head.y) eatIce();
     if (eating) {
       foods.splice(fi, 1);
       score += 10;
@@ -1720,9 +1860,9 @@ h1 {
     } else {
       tailPrev = snake.pop();
       // a plain straight step can still be redone as a turn for a moment (see graceTurn)
-      if (!usedQueue && !(portals && portalCooldown > 0)) lastStep = { tail: tailPrev };
+      if (!usedQueue && !(portals && portalCooldown > 0) && !iceEatenThisStep(head)) lastStep = { tail: tailPrev };
     }
-    if (chaser && chaserHit()) gameOver(false, true);
+    if (chaser && !chaserFrozen() && chaserHit()) gameOver(false, true);
   }
 
   // The snake is drawn up to one step behind the game logic. A turn pressed right after a step
@@ -1753,12 +1893,17 @@ h1 {
     var dt = Math.max(0, Math.min(t - last, 250));
     last = t;
     if (state === 'playing') {
-      acc += dt;
+      gameTime += dt;
+      // mud and shockwaves slow the snake by stretching its steps
+      acc += dt / slowFactor();
       while (acc >= tickMs && state === 'playing') {
         step();
         acc -= tickMs;
       }
-      if (state === 'playing' && chaser) moveChaser(dt / 1000);
+      if (state === 'playing' && chaser) {
+        updateBoss(dt);
+        moveChaser(dt / 1000);
+      }
     }
     updateParticles(dt);
     draw();
@@ -2526,6 +2671,60 @@ h1 {
       ctx.fill();
     }
 
+    // frozen by an ice apple: icy shell
+    if (chaserFrozen()) {
+      var left = (frozenUntil - gameTime) / 1000;
+      var blink = left < 1 ? 0.5 + 0.5 * Math.sin(now / 60) : 1;
+      ctx.save();
+      ctx.globalAlpha = 0.55 * blink;
+      ctx.fillStyle = '#8ceeff';
+      ctx.shadowColor = '#8ceeff';
+      ctx.shadowBlur = cell * 0.6;
+      ctx.beginPath();
+      ctx.arc(x, y, r * 1.12, 0, TAU);
+      ctx.fill();
+      ctx.globalAlpha = 0.9 * blink;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(Math.round(x - r * 0.5), Math.round(y - r * 0.55), Math.max(2, Math.round(r * 0.35)), Math.max(2, Math.round(r * 0.12)));
+      ctx.restore();
+    }
+    // Mika winds up ("!"), sprints, then is tired ("z")
+    if (!chaserFrozen() && (boss.phase === 'warn' || boss.phase === 'stomp')) {
+      var wp = 0.5 + 0.5 * Math.sin(now / 50);
+      ctx.save();
+      ctx.strokeStyle = '#ff3b4f';
+      ctx.lineWidth = Math.max(2, cell * 0.08);
+      ctx.globalAlpha = 0.5 + 0.5 * wp;
+      ctx.setLineDash([cell * 0.18, cell * 0.12]);
+      ctx.beginPath();
+      ctx.arc(x, y, r * (1.35 + 0.15 * wp), 0, TAU);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.font = '700 ' + Math.round(cell * 0.9) + 'px ' + FONT;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineWidth = Math.max(2, cell * 0.16);
+      ctx.strokeStyle = C.bg;
+      ctx.fillStyle = '#ff3b4f';
+      // above the name label (or below the ball when there is no room at the top)
+      var ey = y - r - cell * 1.75;
+      if (ey < cell * 0.5) ey = y + r + cell * 1.75;
+      ctx.strokeText('!', x, ey);
+      ctx.fillText('!', x, ey);
+      ctx.restore();
+    }
+    if (!chaserFrozen() && boss.phase === 'tired') {
+      ctx.save();
+      ctx.font = '700 ' + Math.round(cell * 0.45) + 'px ' + FONT;
+      ctx.fillStyle = '#8c99b3';
+      for (var zz = 0; zz < 3; zz++) {
+        var zt = ((now / 700) + zz / 3) % 1;
+        ctx.globalAlpha = 1 - zt;
+        ctx.fillText('z', x + r * 0.6 + zt * cell * 0.5, y - r - zt * cell * 0.9);
+      }
+      ctx.restore();
+    }
+
     var word = isMetash ? 'Metash' : 'Mika';
     var size = Math.max(10, cell * (isMetash ? 0.78 : 0.62));
     ctx.save();
@@ -2626,6 +2825,77 @@ h1 {
       }
     }
 
+    // Metash's mud puddles (under everything else)
+    if (puddles.length) {
+      ctx.save();
+      for (var pu = 0; pu < puddles.length; pu++) {
+        var pd = puddles[pu];
+        var age = gameTime - pd.born;
+        var grow = Math.min(1, age / 400);
+        var fade = Math.min(1, (PUDDLE_LIFE - age) / 1200);
+        var pcx = (onBoard(pd.x) + 0.5) * cell, pcy = (onBoard(pd.y) + 0.5) * cell;
+        ctx.globalAlpha = 0.75 * fade;
+        ctx.fillStyle = '#3d2614';
+        ctx.beginPath();
+        ctx.ellipse(pcx, pcy, cell * 0.95 * grow, cell * 0.72 * grow, (pu * 1.3) % Math.PI, 0, TAU);
+        ctx.fill();
+        ctx.fillStyle = '#5c3a1e';
+        ctx.beginPath();
+        ctx.ellipse(pcx - cell * 0.12, pcy - cell * 0.08, cell * 0.6 * grow, cell * 0.42 * grow, (pu * 1.3) % Math.PI, 0, TAU);
+        ctx.fill();
+        ctx.globalAlpha = 0.35 * fade;
+        ctx.fillStyle = '#c9a27a';
+        ctx.beginPath();
+        ctx.arc(pcx - cell * 0.3, pcy - cell * 0.22, cell * 0.09 * grow, 0, TAU);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    // Metash's shockwave ring
+    if (wave) {
+      var wAge = (gameTime - wave.born) / WAVE_TIME;
+      var wR = WAVE_MAX * wAge * cell;
+      ctx.save();
+      ctx.globalAlpha = 0.8 * (1 - wAge);
+      ctx.strokeStyle = '#d98a3a';
+      ctx.lineWidth = cell * 0.35;
+      ctx.beginPath();
+      ctx.arc((wave.x + 0.5) * cell, (wave.y + 0.5) * cell, wR, 0, TAU);
+      ctx.stroke();
+      ctx.globalAlpha = 0.5 * (1 - wAge);
+      ctx.strokeStyle = '#ffd6a0';
+      ctx.lineWidth = cell * 0.1;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // ice apple: freezes the chaser
+    if (iceApple) {
+      var iLeft = iceApple.until - gameTime;
+      var iBlink = iLeft < 2000 ? (Math.sin(performance.now() / 70) > 0 ? 1 : 0.35) : 1;
+      var icx = (iceApple.x + 0.5) * cell, icy = (iceApple.y + 0.5) * cell;
+      ctx.save();
+      ctx.globalAlpha = iBlink;
+      ctx.shadowColor = '#8ceeff';
+      ctx.shadowBlur = cell * 0.8;
+      ctx.fillStyle = '#8ceeff';
+      ctx.beginPath();
+      ctx.arc(icx, icy, cell * 0.32, 0, TAU);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = Math.max(1.5, cell * 0.06);
+      for (var sf = 0; sf < 3; sf++) {
+        var sa = sf * Math.PI / 3 + performance.now() / 1500;
+        ctx.beginPath();
+        ctx.moveTo(icx - Math.cos(sa) * cell * 0.2, icy - Math.sin(sa) * cell * 0.2);
+        ctx.lineTo(icx + Math.cos(sa) * cell * 0.2, icy + Math.sin(sa) * cell * 0.2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
     ctx.save();
     ctx.shadowColor = C.food;
     ctx.shadowBlur = cell * 0.7;
@@ -2655,6 +2925,32 @@ h1 {
     drawSnake(cell);
     drawChaser(cell);
     drawParticles(cell);
+    ctx.restore();
+    drawStatus(cell);
+  }
+
+  // small status badges in the top-left corner of the board
+  function drawStatus(cell) {
+    if (state !== 'playing' && state !== 'paused') return;
+    var tags = [];
+    if (gameTime < slowUntil) tags.push({ t: 'Ausgebremst', c: '#c98a4a' });
+    if (chaserFrozen()) tags.push({ t: (mode === 'metash' ? 'Metash' : 'Mika') + ' eingefroren ' + ((frozenUntil - gameTime) / 1000).toFixed(1) + ' s', c: '#8ceeff' });
+    if (!tags.length) return;
+    var fs = Math.max(11, Math.round(cell * 0.42));
+    ctx.save();
+    ctx.font = '700 ' + fs + 'px ' + FONT;
+    ctx.textBaseline = 'middle';
+    var yy = cell * 0.45;
+    for (var i = 0; i < tags.length; i++) {
+      var w = ctx.measureText(tags[i].t).width + fs;
+      ctx.globalAlpha = 0.85;
+      ctx.fillStyle = C.bg;
+      ctx.fillRect(cell * 0.3, yy - fs * 0.75, w, fs * 1.5);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = tags[i].c;
+      ctx.fillText(tags[i].t, cell * 0.3 + fs / 2, yy);
+      yy += fs * 1.8;
+    }
     ctx.restore();
   }
 
