@@ -704,19 +704,63 @@ h1 {
 
 /* song subtitles: fixed height so the board does not jump */
 .lyric {
+  position: relative;
   margin: 0;
-  min-height: 2.9em;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  min-height: 3.6em;
+  font: 700 clamp(1.15rem, 4.8vw, 1.55rem)/1.2 var(--font-display);
+  letter-spacing: -0.01em;
   text-align: center;
-  font: 700 0.9375rem/1.35 var(--font-display);
-  color: var(--fg);
-  opacity: 0;
-  transition: opacity 0.15s;
-  text-wrap: balance;
+  pointer-events: none;
 }
-.lyric.on { opacity: 1; }
+/* one sung line; a new one bounces in word by word, the old one flies out */
+.lyr-line {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: center;
+  gap: 0.05em 0.42em;
+  padding: 0 4px;
+}
+.lyr-line.leaving { animation: lyr-out 0.35s ease-in forwards; }
+.lyr-line.punch { animation: lyr-punch 0.45s ease-out; }
+.lyr-w {
+  display: inline-block;
+  color: rgba(230, 235, 245, 0.42);
+  opacity: 0;
+  animation: lyr-in 0.5s cubic-bezier(0.2, 1.5, 0.4, 1) forwards;
+  animation-delay: calc(var(--i) * 45ms);
+  transition: scale 0.15s ease-out, filter 0.2s;
+}
+/* karaoke: words light up in the line's colours while they are sung */
+.lyr-w.hit {
+  background: linear-gradient(100deg, var(--c1), var(--c2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  scale: 1.05;
+  filter: drop-shadow(0 0 8px var(--c1));
+}
+@keyframes lyr-in {
+  0% { opacity: 0; translate: 0 0.7em; scale: 0.6; filter: blur(4px); }
+  /* end values come from the normal styles, so .hit can still scale and glow */
+  100% { opacity: 1; }
+}
+@keyframes lyr-out {
+  to { opacity: 0; translate: 0 -0.8em; scale: 0.92; filter: blur(3px); }
+}
+@keyframes lyr-punch {
+  0% { scale: 1; }
+  25% { scale: 1.12; rotate: -2deg; }
+  50% { rotate: 2deg; }
+  100% { scale: 1; rotate: 0deg; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lyr-w { animation: none; opacity: 1; }
+  .lyr-line.leaving { animation: none; opacity: 0; }
+  .lyr-line.punch { animation: none; }
+}
 .lyr-box {
   display: grid;
   gap: 2px;
@@ -3551,15 +3595,66 @@ h1 {
     return t < Math.min(end, times[idx] + MAX_SHOW) ? idx : -1;
   }
 
-  var shown = -2;
+  // colour pairs, one per line, cycling
+  var COLORS = [
+    ['#ff4fd8', '#ffb84d'], ['#3ddbc0', '#35c8ff'], ['#ffe566', '#ff5d73'],
+    ['#7a5cff', '#ff4fd8'], ['#46e36a', '#f6f23d'], ['#35c8ff', '#7a5cff'], ['#ff7a3d', '#ffe566']
+  ];
+
+  var shown = -2, curLine = null, words = [], weights = [];
+  function render(idx) {
+    // the old line flies out, then is removed
+    if (curLine) {
+      var old = curLine;
+      old.classList.remove('punch');
+      old.classList.add('leaving');
+      setTimeout(function () { old.remove(); }, 400);
+      curLine = null;
+    }
+    words = []; weights = [];
+    if (idx < 0) return;
+    var col = COLORS[idx % COLORS.length];
+    var el = document.createElement('span');
+    el.className = 'lyr-line' + (/!\s*$/.test(LINES[idx]) ? ' punch' : '');
+    el.style.setProperty('--c1', col[0]);
+    el.style.setProperty('--c2', col[1]);
+    var parts = LINES[idx].split(/\s+/);
+    var total = 0;
+    parts.forEach(function (w, i) {
+      var s = document.createElement('span');
+      s.className = 'lyr-w';
+      s.style.setProperty('--i', i);
+      s.textContent = w;
+      el.appendChild(s);
+      words.push(s);
+      total += w.length + 1;
+      weights.push(total);
+    });
+    for (var k = 0; k < weights.length; k++) weights[k] /= total;
+    lineEl.appendChild(el);
+    curLine = el;
+  }
+
   function tick() {
     var m = window.snakeMusic;
-    var idx = -1;
-    if (m && show && times && m.isOn() && !m.audio.paused) idx = lineAt(m.audio.currentTime);
+    var idx = -1, t = 0;
+    if (m && show && times && m.isOn() && !m.audio.paused) {
+      t = m.audio.currentTime;
+      idx = lineAt(t);
+    }
     if (idx !== shown) {
       shown = idx;
-      lineEl.textContent = idx >= 0 ? LINES[idx] : '';
-      lineEl.classList.toggle('on', idx >= 0);
+      render(idx);
+    }
+    if (idx >= 0 && words.length) {
+      // light the words up in step with the line: spread over its duration, weighted by word length
+      var start = times[idx];
+      var end = idx + 1 < times.length ? Math.min(times[idx + 1], start + MAX_SHOW) : start + MAX_SHOW;
+      var p = (t - start) / Math.max(0.3, (end - start) * 0.85);
+      for (var i = 0; i < words.length; i++) {
+        var on = p >= (i ? weights[i - 1] : 0);
+        if (on !== words[i].classList.contains('hit')) words[i].classList.toggle('hit', on);
+      }
     }
     requestAnimationFrame(tick);
   }

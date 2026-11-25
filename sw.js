@@ -1,6 +1,6 @@
 /* Service Worker: macht Snake offline spielbar.
    Nach Ã„nderungen am Spiel VERSION hochzÃ¤hlen, damit Handys die neue Version laden. */
-var VERSION = 'snake-v7';
+var VERSION = 'snake-v8';
 var CORE = [
   './',
   './index.html',
