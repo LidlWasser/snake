@@ -1243,6 +1243,7 @@ h1 {
   var snake, dir, queue, foods, chaser, score, eaten, best;
   var tailPrev = null;   // cell the tail just left (for smooth drawing)
   var lastStep = null;   // undo info of the last straight step (for late turns)
+  var deathAnim = null, deathTimer = 0;
   var eatenGhost = null; // apple eaten this step, drawn until the head reaches it
   var portals = null; // [{x,y}, {x,y}] or null
   var portalCooldown = 0;
@@ -1498,6 +1499,8 @@ h1 {
     snake = [{ x: 10, y: 10 }, { x: 9, y: 10 }, { x: 8, y: 10 }];
     tailPrev = { x: 7, y: 10 };
     lastStep = null;
+    deathAnim = null;
+    clearTimeout(deathTimer);
     eatenGhost = null;
     headAngVis = null;
     dir = { x: 1, y: 0 };
@@ -1557,6 +1560,7 @@ h1 {
   }
 
   function gameOver(won, byChaser) {
+    var frozenAlpha = clamp(acc / tickMs, 0, 1);
     state = 'over';
     var title = won ? 'Brett voll' : (byChaser ? (mode === 'metash' ? 'Metash hat dich gegessen' : 'Mika hat dich') : 'Game over');
     var text = score + ' Punkte, Länge ' + snake.length + '.';
@@ -1571,7 +1575,19 @@ h1 {
     if (earned) text += ' +' + earned + ' Münzen.';
     run.score = score; run.len = snake.length; run.level = level();
     checkAchievements();
-    showOverlay(title, text, 'Nochmal');
+    if (won) {
+      showOverlay(title, text, 'Nochmal');
+    } else {
+      // death animation: flash red, then burst segment by segment; the result panel follows
+      var per = Math.min(70, 1200 / snake.length);
+      deathAnim = { t0: performance.now(), alpha: frozenAlpha, per: per, popped: 0, done: false };
+      overlay.hidden = true;
+      clearTimeout(deathTimer);
+      deathTimer = setTimeout(function () {
+        if (deathAnim) deathAnim.done = true;
+        if (state === 'over') showOverlay(title, text, 'Nochmal');
+      }, 250 + snake.length * per + 450);
+    }
     setLocked(false);
     pauseBtn.disabled = true;
     pauseBtn.textContent = 'Pause';
@@ -1768,6 +1784,7 @@ h1 {
   // how far the current step has progressed (0..1); the snake is drawn between its last and current cells
   function renderAlpha() {
     if (state === 'playing' || state === 'paused') return clamp(acc / tickMs, 0, 1);
+    if (state === 'over' && deathAnim) return deathAnim.alpha;
     return 1;
   }
 
@@ -1887,7 +1904,36 @@ h1 {
       return lay.toHead[i];
     }
 
-    if (sk.kind === 'metash') { drawMetash(); return; }
+    // death animation: segments burst one by one from the head, the rest flashes red
+    var firstAlive = 0, flash = 0;
+    if (deathAnim && state === 'over') {
+      var el = now - deathAnim.t0;
+      var popN = el < 250 ? 0 : Math.min(len, Math.floor((el - 250) / deathAnim.per) + 1);
+      while (deathAnim.popped < popN) {
+        var kP = deathAnim.popped++;
+        var colP = sk.glow || (kP === 0 ? headColor(sk, now) : bodyColor(sk, kP, len, now));
+        spawnParticles(pts[kP].x, pts[kP].y, colP, kP === 0 ? 18 : 9, kP === 0 ? 3 : 2.3);
+        spawnParticles(pts[kP].x, pts[kP].y, '#ff5d73', 4, 1.8);
+      }
+      firstAlive = popN;
+      flash = 0.5 + 0.5 * Math.sin(el / 45);
+      if (firstAlive >= len) return;
+    }
+    function alive(k) { return k >= firstAlive; }
+    function deathTint() {
+      if (!flash) return;
+      ctx.save();
+      ctx.fillStyle = '#ff3b4f';
+      ctx.globalAlpha = 0.5 * flash;
+      for (var q = firstAlive; q < len; q++) {
+        ctx.beginPath();
+        ctx.arc(pts[q].x, pts[q].y, q === 0 ? cell * 0.5 : rad(q) * 1.1, 0, TAU);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    if (sk.kind === 'metash') { drawMetash(); deathTint(); return; }
 
     // Metash: millipede body (dark brown plates, rusty legs) with his pixel-art face as the head
     function drawMetash() {
@@ -1897,6 +1943,7 @@ h1 {
 
       // legs first, so the plates sit on top of them
       for (seg = len - 1; seg >= 1; seg--) {
+        if (!alive(seg)) continue;
         var dL = segDir(seg);
         var hwL = Math.max(3 * p, Math.round(rad(seg) * 1.05));
         var wig = Math.sin(now / 80 + seg * 1.4);
@@ -1924,6 +1971,7 @@ h1 {
       ctx.save();
       ctx.fillStyle = 'rgba(0,0,0,0.28)';
       for (seg = len - 1; seg >= 1; seg--) {
+        if (!alive(seg)) continue;
         ctx.beginPath();
         ctx.arc(pts[seg].x, pts[seg].y + cell * 0.08, rad(seg) * 1.1, 0, TAU);
         ctx.fill();
@@ -1932,6 +1980,7 @@ h1 {
 
       // armour plates, tail to head, each one overlapping the one behind it
       for (seg = len - 1; seg >= 1; seg--) {
+        if (!alive(seg)) continue;
         var d = segDir(seg);
         var hw = Math.max(3 * p, Math.round(rad(seg) * 1.05));
         var hl = Math.round(cell * 0.5 + Math.max(p, cell * 0.1));
@@ -1968,6 +2017,7 @@ h1 {
       var hwid = cell * 1.3;
       var hhei = hwid * 46 / 42;
       var bob = Math.round(Math.sin(now / 260) * p * 0.6);
+      if (!alive(0)) return;
       ctx.save();
       ctx.shadowColor = 'rgba(0,0,0,0.5)';
       ctx.shadowBlur = cell * 0.25;
@@ -2147,6 +2197,7 @@ h1 {
       ctx.shadowOffsetY = cell * 0.04;
     }
     for (i = len - 1; i >= 0; i--) {
+      if (!alive(i)) continue;
       var r = rad(i);
       var d = segDir(i);
       var pal = palette(i);
@@ -2159,9 +2210,10 @@ h1 {
     ctx.restore();
 
     // scale segments, tail first so each one overlaps the one behind it
-    for (i = len - 1; i >= 1; i--) drawSeg(i);
+    for (i = len - 1; i >= 1; i--) if (alive(i)) drawSeg(i);
 
     // ========== HEAD (detailed like reference) ==========
+    if (!alive(0)) { deathTint(); return; }
     ctx.save();
     ctx.translate(pts[0].x, pts[0].y);
     ctx.rotate(headAngVis);
@@ -2238,6 +2290,9 @@ h1 {
     }
 
     ctx.restore();
+
+    // while dying only the red flash is drawn on top, no skin effects
+    if (deathAnim && state === 'over') { deathTint(); return; }
 
     // ========== EXTRA SKIN EFFECTS (world space) ==========
 
@@ -2640,7 +2695,7 @@ h1 {
       if (e.target && e.target.closest && e.target.closest('button, input, summary')) return;
       e.preventDefault();
       if (state === 'playing' || state === 'paused') togglePause();
-      else start();
+      else if (!(deathAnim && !deathAnim.done)) start();
     }
   });
 
