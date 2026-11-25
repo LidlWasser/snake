@@ -1,0 +1,2816 @@
+<!doctype html><html lang="de"><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0e1420">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Snake"><style>html,body{overscroll-behavior:none;-webkit-tap-highlight-color:transparent}:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}
+.hs-btn {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--fg);
+  font: 500 0.9375rem var(--font-display);
+  cursor: pointer;
+}
+.hs-btn:hover { background: var(--line); }
+.hs-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: var(--scrim);
+}
+.hs-panel[hidden] { display: none !important; }
+.hs-card {
+  width: 100%;
+  max-width: 360px;
+  max-height: 80vh;
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 20px 18px 16px;
+}
+.hs-card h2 {
+  margin: 0 0 12px;
+  font: 700 1.35rem var(--font-display);
+}
+.hs-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.hs-tab {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font: 500 0.8125rem var(--font-display);
+  cursor: pointer;
+}
+.hs-tab.active {
+  background: var(--snake);
+  border-color: transparent;
+  color: var(--on-snake);
+  font-weight: 700;
+}
+.hs-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.hs-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--bg);
+  border-radius: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.hs-rank {
+  width: 1.5em;
+  color: var(--muted);
+  font: 700 0.875rem var(--font-mono);
+}
+.hs-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.hs-score { font: 700 1rem var(--font-mono); }
+.hs-empty { color: var(--muted); text-align: center; padding: 16px 0; }
+.hs-close {
+  margin-top: 14px;
+  width: 100%;
+}
+.name-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  width: 100%;
+  max-width: 280px;
+}
+.name-row input {
+  flex: 1;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--fg);
+  font: 500 1rem var(--font-body);
+}
+.name-row input:focus {
+  outline: 2px solid var(--snake);
+  outline-offset: 1px;
+}
+
+</style></head><body>
+<title>Snake Arcade</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=JetBrains+Mono:wght@500;700&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* Layout: one centered column. Mode picker, colour picker and stats strip above a square 20x20 board, controls below, thumb pad on touch screens. */
+:root {
+  --bg: #0e1420;
+  --surface: #151d2d;
+  --line: #26324a;
+  --fg: #e6ebf5;
+  --muted: #8c99b3;
+  --snake: #3ddbc0;
+  --tongue: #ff5d73;
+  --food: #ffb84d;
+  --on-snake: #062720;
+  --scrim: rgba(14, 20, 32, 0.82);
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  line-height: 1.5;
+  padding-block: 20px 28px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.app {
+  max-width: 480px;
+  margin-inline: auto;
+  display: grid;
+  gap: 16px;
+}
+.top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+h1 {
+  margin: 0;
+  font: 700 2rem/1.1 var(--font-display);
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+.sub {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.modes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.mode {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+.mode input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.mode span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 8px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--muted);
+  font: 500 0.9375rem var(--font-display);
+  text-align: center;
+}
+.mode input:checked + span {
+  background: var(--snake);
+  border-color: transparent;
+  color: var(--on-snake);
+  font-weight: 700;
+}
+.mode input:focus-visible + span {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+.mode input:disabled { cursor: not-allowed; }
+.mode input:disabled:not(:checked) + span { opacity: 0.45; }
+
+/* colour picker */
+.skins {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.skins summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 14px 0 12px;
+  list-style: none;
+  cursor: pointer;
+  font: 500 0.9375rem var(--font-display);
+}
+.skins summary::-webkit-details-marker { display: none; }
+.skins summary:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+.skins summary::after {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin: -3px 0 0 auto;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(45deg);
+}
+.skins[open] summary::after {
+  margin-top: 3px;
+  transform: rotate(-135deg);
+}
+.sum-label { color: var(--muted); }
+.sum-dot {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+#sumName { font-weight: 700; }
+.skin-panel {
+  display: grid;
+  gap: 12px;
+  padding: 4px 12px 14px;
+}
+.skin-group {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.skin-group legend {
+  padding: 0;
+  margin-bottom: 4px;
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  gap: 4px;
+}
+.swatch {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+}
+.swatch input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.chip {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.swatch input:checked + .chip {
+  outline: 2px solid var(--fg);
+  outline-offset: 3px;
+}
+.swatch input:focus-visible + .chip {
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--snake);
+}
+.swatch input:disabled { cursor: not-allowed; }
+.swatch input:disabled:not(:checked) + .chip { opacity: 0.4; }
+.spin { animation: spin 6s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .spin { animation: none; }
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.stat {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.label {
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.value {
+  font: 700 1.5rem/1.1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.board-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  max-width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+#board {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+  background: var(--scrim);
+}
+.ov-title {
+  margin: 0;
+  font: 700 1.75rem/1.15 var(--font-display);
+}
+.ov-text {
+  margin: 0 0 6px;
+  max-width: 30ch;
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+.btn {
+  min-height: 44px;
+  padding: 0 22px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--snake);
+  color: var(--on-snake);
+  font: 700 1rem var(--font-display);
+  cursor: pointer;
+}
+.btn:hover { filter: brightness(1.08); }
+.btn:focus-visible,
+.pad button:focus-visible,
+.check input:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+.btn.ghost {
+  background: transparent;
+  color: var(--fg);
+  border-color: var(--line);
+}
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  filter: none;
+}
+.tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  color: var(--fg);
+  font-size: 0.9375rem;
+  cursor: pointer;
+}
+.check input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--snake);
+}
+.pad {
+  display: none;
+  grid-template-columns: repeat(3, 64px);
+  grid-template-rows: repeat(2, 64px);
+  grid-template-areas: ". up ." "left down right";
+  gap: 8px;
+  justify-content: center;
+}
+@media (pointer: coarse) {
+  .pad { display: grid; }
+}
+.pad button {
+  background: var(--surface);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font: 700 1.5rem var(--font-display);
+  touch-action: manipulation;
+  cursor: pointer;
+}
+.pad button:active { background: var(--line); }
+.pad [data-dir="up"] { grid-area: up; }
+.pad [data-dir="left"] { grid-area: left; }
+.pad [data-dir="down"] { grid-area: down; }
+.pad [data-dir="right"] { grid-area: right; }
+
+.hs-btn {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--fg);
+  font: 500 0.9375rem var(--font-display);
+  cursor: pointer;
+}
+.hs-btn:hover { background: var(--line); }
+.hs-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: var(--scrim);
+}
+.hs-panel[hidden] { display: none !important; }
+.hs-card {
+  width: 100%;
+  max-width: 360px;
+  max-height: 80vh;
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 20px 18px 16px;
+}
+.hs-card h2 {
+  margin: 0 0 12px;
+  font: 700 1.35rem var(--font-display);
+}
+.hs-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.hs-tab {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font: 500 0.8125rem var(--font-display);
+  cursor: pointer;
+}
+.hs-tab.active {
+  background: var(--snake);
+  border-color: transparent;
+  color: var(--on-snake);
+  font-weight: 700;
+}
+.hs-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.hs-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--bg);
+  border-radius: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.hs-rank {
+  width: 1.5em;
+  color: var(--muted);
+  font: 700 0.875rem var(--font-mono);
+}
+.hs-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.hs-score { font: 700 1rem var(--font-mono); }
+.hs-empty { color: var(--muted); text-align: center; padding: 16px 0; }
+.hs-close {
+  margin-top: 14px;
+  width: 100%;
+}
+.name-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  width: 100%;
+  max-width: 280px;
+}
+.name-row input {
+  flex: 1;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--fg);
+  font: 500 1rem var(--font-body);
+}
+.name-row input:focus {
+  outline: 2px solid var(--snake);
+  outline-offset: 1px;
+}
+
+/* top bar: player name left, coins + settings right */
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.player {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+.player .label { flex: none; }
+.player input {
+  min-width: 0;
+  width: 100%;
+  max-width: 180px;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--fg);
+  font: 500 0.9375rem var(--font-body);
+}
+.player input:focus { outline: 2px solid var(--snake); outline-offset: 1px; }
+.bar-right { display: flex; align-items: center; gap: 8px; flex: none; }
+.coins {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font: 700 0.9375rem var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.coin-ico {
+  width: 14px; height: 14px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #fff3b0, #e0a800 60%, #8a6400);
+  flex: none;
+}
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--fg);
+  cursor: pointer;
+}
+.icon-btn:hover { background: var(--line); }
+.icon-btn:focus-visible, .hs-btn:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+
+/* settings */
+.set-row {
+  display: grid;
+  gap: 6px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+.set-row:first-of-type { border-top: 0; padding-top: 0; }
+.set-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.set-val { font: 700 0.875rem var(--font-mono); color: var(--muted); }
+.set-row input[type=range] { width: 100%; accent-color: var(--snake); min-height: 32px; }
+
+/* locked skins + shop */
+.swatch .lock {
+  position: absolute;
+  right: 0; bottom: 0;
+  min-width: 22px;
+  padding: 0 4px;
+  border-radius: 6px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font: 700 0.625rem/16px var(--font-mono);
+  text-align: center;
+  pointer-events: none;
+}
+.swatch.locked .chip { opacity: 0.35; filter: grayscale(0.6); }
+.shop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border-radius: 10px;
+  font-size: 0.875rem;
+}
+.shop[hidden] { display: none; }
+.shop .btn { min-height: 38px; padding: 0 14px; font-size: 0.875rem; }
+
+/* achievements */
+.ach-sum { margin: -4px 0 12px; color: var(--muted); font-size: 0.875rem; }
+.ach-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.ach-list li {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--bg);
+  border-radius: 8px;
+}
+.ach-list li.locked { opacity: 0.55; }
+.ach-ico { font-size: 1.2rem; text-align: center; }
+.ach-name { font: 700 0.9375rem var(--font-display); }
+.ach-desc { color: var(--muted); font-size: 0.8125rem; line-height: 1.35; }
+.ach-rew { font: 700 0.8125rem var(--font-mono); color: var(--food); white-space: nowrap; }
+
+/* toast */
+.toasts {
+  position: fixed;
+  left: 50%;
+  bottom: max(20px, env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 60;
+  display: grid;
+  gap: 8px;
+  width: min(340px, calc(100vw - 32px));
+  pointer-events: none;
+}
+.toast {
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--snake);
+  border-radius: 12px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+  font-size: 0.875rem;
+  animation: toast-in 0.25s ease-out;
+}
+.toast b { font-family: var(--font-display); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(10px); } }
+@media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
+
+</style>
+
+<main class="app">
+  <div class="bar">
+    <label class="player" for="playerName">
+      <span class="label">Name</span>
+      <input id="playerName" type="text" maxlength="16" placeholder="Dein Name" autocomplete="nickname">
+    </label>
+    <div class="bar-right">
+      <span class="coins" title="Münzen zum Freischalten von Skins"><span class="coin-ico"></span><span id="coins">0</span></span>
+      <button class="icon-btn" id="setBtn" type="button" aria-label="Einstellungen" title="Einstellungen">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <header class="top">
+    <h1>Snake</h1>
+    <p class="sub">Pfeiltasten, WASD oder wischen</p>
+  </header>
+
+  <fieldset class="modes" id="modes">
+    <legend class="sr">Spielmodus</legend>
+    <label class="mode"><input type="radio" name="mode" value="normal" checked><span>Normal</span></label>
+    <label class="mode"><input type="radio" name="mode" value="five"><span>5 Äpfel</span></label>
+    <label class="mode"><input type="radio" name="mode" value="mika"><span>Mika</span></label>
+    <label class="mode"><input type="radio" name="mode" value="metash"><span>Metash</span></label>
+  </fieldset>
+
+  <details class="skins" id="skins">
+    <summary>
+      <span class="sum-label">Wurmfarbe</span>
+      <span class="sum-dot" id="sumDot"></span>
+      <span id="sumName">Türkis</span>
+    </summary>
+    <div class="skin-panel">
+      <fieldset class="skin-group">
+        <legend>Farben</legend>
+        <div class="swatches" id="skinStd"></div>
+      </fieldset>
+      <fieldset class="skin-group">
+        <legend>Spezial</legend>
+        <div class="swatches" id="skinSpecial"></div>
+      </fieldset>
+      <div class="shop" id="shop" hidden>
+        <span id="shopText"></span>
+        <button class="btn" id="shopBuy" type="button">Kaufen</button>
+      </div>
+    </div>
+  </details>
+
+  <section class="stats" aria-label="Spielstand">
+    <div class="stat"><span class="label">Punkte</span><span class="value" id="score">0</span></div>
+    <div class="stat"><span class="label">Rekord</span><span class="value" id="best">0</span></div>
+    <div class="stat"><span class="label">Tempo</span><span class="value" id="level">1</span></div>
+  </section>
+
+  <div class="board-wrap" id="boardWrap">
+    <canvas id="board" role="img" aria-label="Spielfeld mit 20 mal 20 Feldern"></canvas>
+    <div class="overlay" id="overlay">
+      <p class="ov-title" id="ovTitle">Bereit?</p>
+      <p class="ov-text" id="ovText">Friss die Äpfel, werde länger und berühre dich nicht selbst. Alle 5 Äpfel wird es schneller.</p>
+      <button class="btn" id="ovBtn" type="button">Spiel starten</button>
+    </div>
+  </div>
+
+  <div class="tools">
+    <label class="check" for="wrap"><input type="checkbox" id="wrap"> Wände durchlässig</label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="hs-btn" id="hsBtn" type="button">Highscores</button>
+      <button class="hs-btn" id="achBtn" type="button">Erfolge</button>
+      <button class="btn ghost" id="pauseBtn" type="button" disabled>Pause</button>
+    </div>
+  </div>
+
+  <div class="hs-panel" id="setPanel" hidden role="dialog" aria-labelledby="setTitle">
+    <div class="hs-card">
+      <h2 id="setTitle">Einstellungen</h2>
+      <div class="set-row">
+        <div class="set-head">
+          <span>Musik</span>
+          <button class="hs-btn" id="musicBtn" type="button" aria-pressed="true">An</button>
+        </div>
+      </div>
+      <div class="set-row">
+        <div class="set-head">
+          <label for="musicVol">Lautstärke</label>
+          <span class="set-val" id="musicVolVal">60 %</span>
+        </div>
+        <input type="range" id="musicVol" min="0" max="100" step="5" value="60">
+      </div>
+      <div class="set-row">
+        <span>Spielstand</span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="hs-btn" id="saveExport" type="button">Exportieren</button>
+          <button class="hs-btn" id="saveImport" type="button">Importieren</button>
+          <input type="file" id="saveFile" accept=".json,application/json" hidden>
+        </div>
+        <span class="ach-desc" id="saveMsg">Sichert Name, Münzen, Skins, Erfolge und Highscores als Datei, z. B. zum Übertragen aufs Handy.</span>
+      </div>
+      <button class="btn hs-close" id="setClose" type="button">Schließen</button>
+    </div>
+  </div>
+
+  <div class="hs-panel" id="achPanel" hidden role="dialog" aria-labelledby="achTitle">
+    <div class="hs-card">
+      <h2 id="achTitle">Erfolge</h2>
+      <p class="ach-sum" id="achSum"></p>
+      <ul class="ach-list" id="achList"></ul>
+      <button class="btn hs-close" id="achClose" type="button">Schließen</button>
+    </div>
+  </div>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+
+  <div class="hs-panel" id="hsPanel" hidden>
+    <div class="hs-card">
+      <h2>Highscores</h2>
+      <div class="hs-tabs" id="hsTabs"></div>
+      <ol class="hs-list" id="hsList"></ol>
+      <button class="btn hs-close" id="hsClose" type="button">Schließen</button>
+    </div>
+  </div>
+
+  <div class="pad" id="pad" aria-label="Steuerkreuz">
+    <button type="button" data-dir="up" aria-label="Hoch">&#8593;</button>
+    <button type="button" data-dir="left" aria-label="Links">&#8592;</button>
+    <button type="button" data-dir="down" aria-label="Runter">&#8595;</button>
+    <button type="button" data-dir="right" aria-label="Rechts">&#8594;</button>
+  </div>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  var N = 20;
+  var TAU = Math.PI * 2;
+  var cvs = document.getElementById('board');
+  var ctx = cvs.getContext('2d');
+  var boardWrap = document.getElementById('boardWrap');
+  var scoreEl = document.getElementById('score');
+  var bestEl = document.getElementById('best');
+  var levelEl = document.getElementById('level');
+  var overlay = document.getElementById('overlay');
+  var ovTitle = document.getElementById('ovTitle');
+  var ovText = document.getElementById('ovText');
+  var ovBtn = document.getElementById('ovBtn');
+  var pauseBtn = document.getElementById('pauseBtn');
+  var wrapBox = document.getElementById('wrap');
+  var pad = document.getElementById('pad');
+  var skinsBox = document.getElementById('skins');
+  var sumDot = document.getElementById('sumDot');
+  var sumName = document.getElementById('sumName');
+
+  var css = getComputedStyle(document.documentElement);
+  function tok(name) { return css.getPropertyValue(name).trim(); }
+  var C = {
+    bg: tok('--bg'),
+    surface: tok('--surface'),
+    line: tok('--line'),
+    tongue: tok('--tongue'),
+    food: tok('--food')
+  };
+  var FONT = tok('--font-display') || 'sans-serif';
+
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function hsl(h, s, l) {
+    return 'hsl(' + (Math.round(h * 10) / 10 % 360) + ',' + s + '%,' + clamp(l, 0, 100) + '%)';
+  }
+
+  /* ---------- worm colours ---------- */
+
+  function solid(name, h, s, l, o) {
+    o = o || {};
+    return {
+      name: name, kind: 'solid', h: h, s: s, l: l,
+      head: o.head || hsl(h, s, Math.min(94, l + 14)),
+      edge: o.edge || hsl(h, Math.min(s, 55), 9),
+      spot: o.spot || hsl(h, s, Math.max(8, l - 32)),
+      swatch: 'linear-gradient(135deg,' + hsl(h, s, l + 14) + ',' + hsl(h, s, l - 12) + ')',
+      glow: null, rim: 1,
+      sheen: 'rgba(255, 255, 255, 0.14)', sheenScale: 0.55,
+      spotAlpha: 0.55,
+      chev: o.chev || null, lime: o.lime || null
+    };
+  }
+
+  var METASH_HEAD_SRC = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACoAAAAuCAYAAABeUotNAAAB+UlEQVR4Xt2ZsUoDQRCGPYkRjoCCGglaiAQhWljZBXwASxHBRvEJfAFTaCFY+RoShDS+gyAIFnoQUohERI1ykeNahT0nsHPezc5eSJj8TcixO3v77b+zw54zZqkpt/Bj2VWpGwYOp/84p/EwlTMdHBN0C65p1yRpK0IRFkOU9AmQ7APBVIVBmOpd+UQHRRIriaxcosMimUQWJIYomUePtzey5kuWTq9utfaQX+UR5XpzcWFOm3n75YNFjhLk7W4YqKZiiPZOJiB6tr+ZOlkg2W+CoKfXT23888aNekcxRHOUN2t1fRdinezwsgIV77C6rA1RKhZVlSWGqANEJ9z/60uKGEWIuwJJ8eQRxbsdZuZ5DwpKpVzW4HitVvS8sqZ+TcmbxsNeFUOUPOvrtYOI2F5VIwrPubKNJ4Zob9cnnUjUrqa8iUXFw94EjQ7RQQuf9XKJzs9Oa/COttatYGIiS6UZFce0foX+jbu2Nr4Yj+Z6dz6d6C4Ik+UKCGLZ1q/N57awepRL7OL6ntslVaZ7QYxHY7d5UJ+aenV3dYVF+PKxadTe/45u9979rxH3KJYpoawS49HYru93XuXqreOrLpP5vMyTyfgO3zQL2ApIworirzBiPEoSBeEZZiUMBEFJ35lgXDFEybMeZhSb8V+1ZSscD4+D/4sh+guS37vKSCjsYwAAAABJRU5ErkJggg==';
+  var metashHead = new Image();
+  metashHead.src = METASH_HEAD_SRC;
+
+  var SKINS = {
+    mint: solid('Türkis', 168, 70, 55),
+    green: solid('Grün', 140, 52, 32, { chev: '#6fb53f', lime: '#a6d94a', edge: '#0f2a1a' }),
+    blue: solid('Blau', 215, 85, 60),
+    purple: solid('Lila', 270, 70, 62),
+    pink: solid('Pink', 328, 85, 66),
+    red: solid('Rot', 4, 82, 56),
+    orange: solid('Orange', 28, 95, 55),
+    yellow: solid('Gelb', 52, 95, 56),
+    white: solid('Weiß', 210, 12, 90),
+    black: solid('Schwarz', 220, 10, 14, {
+      head: hsl(220, 10, 24),
+      edge: hsl(220, 18, 62),
+      spot: hsl(220, 12, 36)
+    }),
+    neon: {
+      name: 'Neon', kind: 'neon', fill: '#0d1326',
+      head: '#141c3d', edge: '#ff3df0', spot: '#2bf5ff',
+      glow: '#ff3df0', rim: 1.7,
+      sheen: 'rgba(43, 245, 255, 0.85)', sheenScale: 0.14, spotAlpha: 0.7,
+      swatch: 'radial-gradient(circle,#0d1326 50%,#ff3df0 56%)',
+      swatchGlow: '0 0 10px #ff3df0'
+    },
+    rainbow: {
+      name: 'Regenbogen', kind: 'rainbow',
+      glow: null, rim: 1,
+      sheen: 'rgba(255, 255, 255, 0.2)', sheenScale: 0.5, spotAlpha: 0.5,
+      swatch: 'conic-gradient(#ff3b3b,#ffb02e,#f6f23d,#46e36a,#35c8ff,#7a5cff,#ff4fd8,#ff3b3b)',
+      animated: true
+    },
+    chrome: {
+      name: 'Chrom', kind: 'metal', h: 215, s: 14, l: 50, amp: 36,
+      head: hsl(215, 14, 86), edge: hsl(215, 22, 10), spot: hsl(215, 10, 26),
+      glow: null, rim: 1,
+      sheen: 'rgba(255, 255, 255, 0.6)', sheenScale: 0.22, spotAlpha: 0.45,
+      swatch: 'linear-gradient(160deg,#f7f9ff 0%,#8d99ae 32%,#eef2fb 50%,#566074 72%,#cdd5e3 100%)'
+    },
+    gold: {
+      name: 'Gold', kind: 'metal', h: 44, s: 92, l: 50, amp: 20,
+      head: hsl(46, 95, 74), edge: hsl(34, 70, 11), spot: hsl(36, 80, 27),
+      glow: null, rim: 1,
+      sheen: 'rgba(255, 250, 200, 0.55)', sheenScale: 0.22, spotAlpha: 0.5,
+      swatch: 'linear-gradient(160deg,#fff3b0 0%,#e0a800 38%,#fff0a0 52%,#b8860b 80%,#f5cf55 100%)'
+    },
+    lava: {
+      name: 'Lava', kind: 'lava',
+      head: hsl(42, 100, 62), edge: hsl(8, 90, 9), spot: hsl(0, 90, 20),
+      glow: '#ff6a1a', rim: 1.2,
+      sheen: 'rgba(255, 230, 150, 0.3)', sheenScale: 0.4, spotAlpha: 0.6,
+      swatch: 'radial-gradient(circle at 40% 35%,#ffd23f,#ff5a1f 55%,#7a0c00)',
+      swatchGlow: '0 0 8px #ff6a1a',
+      animated: true
+    },
+    galaxy: {
+      name: 'Galaxie', kind: 'galaxy',
+      head: hsl(258, 60, 42), edge: hsl(262, 60, 8), spot: hsl(300, 85, 62),
+      glow: '#7a5cff', rim: 1.1,
+      sheen: 'rgba(200, 180, 255, 0.18)', sheenScale: 0.5, spotAlpha: 0.45,
+      swatch: 'radial-gradient(circle at 30% 30%,#fff 0 1.5px,transparent 2.5px),radial-gradient(circle at 70% 62%,#fff 0 1px,transparent 2px),linear-gradient(135deg,#6b4be0,#1a1245)',
+      animated: true
+    },
+    skeleton: {
+      name: 'Skelett', kind: 'skeleton',
+      head: hsl(40, 8, 88), edge: hsl(40, 5, 25), spot: hsl(40, 6, 55),
+      glow: null, rim: 1.15,
+      sheen: 'rgba(255,255,255,0.12)', sheenScale: 0.35, spotAlpha: 0.7,
+      swatch: 'linear-gradient(135deg,#f0ebe0 0%,#c8c0b0 40%,#8a8478 100%)',
+      animated: true
+    },
+    dragon: {
+      name: 'Drache', kind: 'dragon',
+      head: hsl(12, 95, 48), edge: hsl(8, 80, 12), spot: hsl(35, 100, 50),
+      glow: '#ff4a1a', rim: 1.35,
+      sheen: 'rgba(255, 180, 60, 0.45)', sheenScale: 0.3, spotAlpha: 0.55,
+      swatch: 'radial-gradient(circle at 35% 30%,#ffd060,#ff3a10 50%,#6a0a00)',
+      swatchGlow: '0 0 10px #ff4a1a',
+      animated: true
+    },
+    lightning: {
+      name: 'Blitz', kind: 'lightning',
+      head: hsl(52, 100, 72), edge: hsl(220, 40, 12), spot: hsl(48, 100, 55),
+      glow: '#ffe566', rim: 1.4,
+      sheen: 'rgba(255, 255, 200, 0.7)', sheenScale: 0.2, spotAlpha: 0.6,
+      swatch: 'linear-gradient(135deg,#fff8c0 0%,#ffe020 35%,#1a1a2e 70%,#ffe020 100%)',
+      swatchGlow: '0 0 12px #ffe020',
+      animated: true
+    },
+    water: {
+      name: 'Wasser', kind: 'water',
+      head: hsl(195, 85, 62), edge: hsl(210, 70, 18), spot: hsl(185, 70, 45),
+      glow: '#3ecfff', rim: 1.15,
+      sheen: 'rgba(180, 240, 255, 0.5)', sheenScale: 0.45, spotAlpha: 0.4,
+      swatch: 'radial-gradient(circle at 40% 35%,#a8f0ff,#2a9fd9 55%,#0a3a5c)',
+      swatchGlow: '0 0 8px #3ecfff',
+      animated: true
+    },
+    ice: {
+      name: 'Eis', kind: 'ice',
+      head: hsl(190, 95, 82), edge: hsl(205, 75, 18), spot: hsl(188, 85, 54),
+      glow: '#8ceeff', rim: 1.35,
+      sheen: 'rgba(235, 255, 255, 0.8)', sheenScale: 0.2, spotAlpha: 0.65,
+      swatch: 'linear-gradient(135deg,#f4ffff 0%,#8ceeff 42%,#247fb8 100%)',
+      swatchGlow: '0 0 10px #8ceeff',
+      animated: true
+    },
+    cosmos: {
+      name: 'Kosmos', kind: 'cosmos',
+      head: hsl(260, 50, 35), edge: hsl(270, 40, 8), spot: hsl(300, 80, 60),
+      glow: '#9b6bff', rim: 1.2,
+      sheen: 'rgba(200, 180, 255, 0.25)', sheenScale: 0.4, spotAlpha: 0.35,
+      swatch: 'radial-gradient(circle at 30% 30%,#fff 0 1px,transparent 2px),radial-gradient(circle at 70% 60%,#ffd700 0 1.5px,transparent 2.5px),linear-gradient(135deg,#2a1a5e,#0a0618)',
+      swatchGlow: '0 0 10px #9b6bff',
+      animated: true
+    },
+    metash: {
+      name: 'Metash', kind: 'metash',
+      head: '#96694b', edge: '#0f0a0c', spot: '#705656',
+      glow: null, rim: 1,
+      sheen: 'rgba(255,255,255,0.12)', sheenScale: 0.4, spotAlpha: 0.5,
+      swatch: 'url(' + METASH_HEAD_SRC + ') center / 88% no-repeat, #45302f',
+      animated: true
+    }
+  };
+  var STD_KEYS = ['mint', 'green', 'blue', 'purple', 'pink', 'red', 'orange', 'yellow', 'white', 'black'];
+  var SPECIAL_KEYS = ['neon', 'rainbow', 'chrome', 'gold', 'lava', 'galaxy', 'skeleton', 'dragon', 'lightning', 'water', 'ice', 'cosmos', 'metash'];
+
+  function bodyColor(sk, i, len, now) {
+    var t = len > 2 ? (i - 1) / (len - 1) : 0;
+    var w;
+    switch (sk.kind) {
+      case 'rainbow': return hsl(now / 14 + i * 22, 90, 58);
+      case 'metal': return hsl(sk.h, sk.s, clamp(sk.l + sk.amp * Math.sin(i * 0.9 - now / 500), 8, 92));
+      case 'lava':
+        w = 0.5 + 0.5 * Math.sin(i * 0.8 - now / 220);
+        return hsl(6 + 24 * w, 100, 34 + 18 * w);
+      case 'galaxy': return hsl(255 + 25 * t, 60, 26 - 10 * t);
+      case 'neon': return sk.fill;
+      case 'skeleton':
+        return hsl(40, 6, 72 - 28 * t + 6 * Math.sin(i * 2.1 + now / 400));
+      case 'dragon':
+        w = 0.5 + 0.5 * Math.sin(i * 0.7 - now / 180);
+        return hsl(8 + 18 * w, 90, 32 + 16 * w - 8 * t);
+      case 'lightning':
+        w = Math.sin(i * 1.4 - now / 90);
+        return w > 0.55 ? hsl(52, 100, 78) : hsl(220, 25, 14 + 8 * t);
+      case 'water':
+        w = 0.5 + 0.5 * Math.sin(i * 0.6 - now / 300);
+        return hsl(190 + 20 * w, 75, 42 + 12 * w - 10 * t);
+      case 'ice':
+        w = 0.5 + 0.5 * Math.sin(i * 0.75 - now / 420);
+        return hsl(188 + 18 * w, 82, 54 + 18 * w - 9 * t);
+      case 'cosmos':
+        return hsl(255 + 30 * t, 45, 18 - 6 * t);
+      case 'metash': return '#45302f';
+      default: return hsl(sk.h, sk.s, Math.max(4, sk.l - 10 * t));
+    }
+  }
+  function edgeColor(sk, i, now) { return sk.kind === 'rainbow' ? hsl(now / 14 + i * 22, 60, 16) : sk.edge; }
+  function spotColor(sk, i, now) { return sk.kind === 'rainbow' ? hsl(now / 14 + i * 22, 70, 30) : sk.spot; }
+  function headColor(sk, now) { return sk.kind === 'rainbow' ? hsl(now / 14, 90, 68) : sk.head; }
+
+  /* ---------- storage helpers, coins, owned skins ---------- */
+
+  function lsGet(k, fallback) {
+    try {
+      var v = localStorage.getItem(k);
+      return v === null ? fallback : JSON.parse(v);
+    } catch (e) { return fallback; }
+  }
+  function lsSet(k, v) {
+    try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* ignore */ }
+  }
+
+  // special skins get more expensive in list order
+  var SKIN_PRICES = [25, 50, 80, 120, 170, 230, 300, 380, 470, 570, 680, 800, 1000];
+  function priceOf(key) {
+    var i = SPECIAL_KEYS.indexOf(key);
+    return i < 0 ? 0 : SKIN_PRICES[i];
+  }
+
+  var coins = Math.max(0, parseInt(lsGet('snake-coins', 0), 10) || 0);
+  var owned = lsGet('snake-owned', []);
+  if (!Array.isArray(owned)) owned = [];
+  function isOwned(key) { return STD_KEYS.indexOf(key) >= 0 || owned.indexOf(key) >= 0; }
+  var coinsEl = document.getElementById('coins');
+  function renderCoins() { coinsEl.textContent = coins; }
+  function addCoins(n) {
+    if (!n) return;
+    coins += n;
+    lsSet('snake-coins', coins);
+    renderCoins();
+  }
+  renderCoins();
+
+  var skinKey = 'green';
+  try {
+    var savedSkin = localStorage.getItem('snake-skin');
+    if (savedSkin && SKINS[savedSkin] && isOwned(savedSkin)) skinKey = savedSkin;
+  } catch (e) { /* ignore */ }
+
+  var shop = document.getElementById('shop');
+  var shopText = document.getElementById('shopText');
+  var shopBuy = document.getElementById('shopBuy');
+  var shopKey = null;
+
+  function buildSwatches(parent, keys) {
+    keys.forEach(function (key) {
+      var sk = SKINS[key];
+      var label = document.createElement('label');
+      label.className = 'swatch';
+      label.dataset.key = key;
+      var input = document.createElement('input');
+      input.type = 'radio';
+      input.name = 'skin';
+      input.value = key;
+      input.checked = key === skinKey;
+      var chip = document.createElement('span');
+      chip.className = 'chip' + (sk.kind === 'rainbow' ? ' spin' : '');
+      chip.style.background = sk.swatch;
+      if (sk.swatchGlow) chip.style.boxShadow = sk.swatchGlow;
+      label.appendChild(input);
+      label.appendChild(chip);
+      if (priceOf(key)) {
+        var lock = document.createElement('span');
+        lock.className = 'lock';
+        lock.textContent = priceOf(key);
+        label.appendChild(lock);
+      }
+      // a locked skin is not picked on click, it opens the shop bar instead
+      input.addEventListener('click', function (e) {
+        if (isOwned(key)) { hideShop(); return; }
+        e.preventDefault();
+        openShop(key);
+      });
+      parent.appendChild(label);
+    });
+  }
+  buildSwatches(document.getElementById('skinStd'), STD_KEYS);
+  buildSwatches(document.getElementById('skinSpecial'), SPECIAL_KEYS);
+
+  function refreshLocks() {
+    var labels = document.querySelectorAll('.swatch');
+    for (var i = 0; i < labels.length; i++) {
+      var key = labels[i].dataset.key;
+      var sk = SKINS[key];
+      var own = isOwned(key);
+      labels[i].classList.toggle('locked', !own);
+      var lock = labels[i].querySelector('.lock');
+      if (lock) lock.hidden = own;
+      var txt = own ? sk.name : sk.name + ' – gesperrt, ' + priceOf(key) + ' Münzen';
+      labels[i].title = txt;
+      labels[i].querySelector('input').setAttribute('aria-label', txt);
+    }
+  }
+  function openShop(key) {
+    shopKey = key;
+    var p = priceOf(key);
+    var enough = coins >= p;
+    shopText.textContent = SKINS[key].name + ': ' + p + ' Münzen' + (enough ? '' : ' (dir fehlen ' + (p - coins) + ')');
+    shopBuy.disabled = !enough;
+    shop.hidden = false;
+  }
+  function hideShop() { shop.hidden = true; shopKey = null; }
+  shopBuy.addEventListener('click', function () {
+    if (!shopKey || isOwned(shopKey)) return;
+    var p = priceOf(shopKey);
+    if (coins < p) return;
+    addCoins(-p);
+    owned.push(shopKey);
+    lsSet('snake-owned', owned);
+    var key = shopKey;
+    hideShop();
+    refreshLocks();
+    var inp = document.querySelector('input[name="skin"][value="' + key + '"]');
+    if (inp) { inp.checked = true; inp.dispatchEvent(new Event('change')); }
+    toast('<b>' + SKINS[key].name + '</b> freigeschaltet');
+    checkAchievements();
+  });
+  refreshLocks();
+
+  function updateSkinSummary() {
+    var sk = SKINS[skinKey];
+    sumDot.style.background = sk.swatch;
+    sumDot.style.boxShadow = sk.swatchGlow || 'none';
+    sumDot.className = 'sum-dot' + (sk.kind === 'rainbow' ? ' spin' : '');
+    sumName.textContent = sk.name;
+  }
+  updateSkinSummary();
+
+  var lockables = document.querySelectorAll('input[name="mode"], input[name="skin"]');
+
+  /* ---------- game modes ---------- */
+
+  var modeInputs = document.querySelectorAll('input[name="mode"]');
+  var MODES = {
+    normal: {
+      apples: 1,
+      chaser: false,
+      portals: false,
+      text: 'Friss die Äpfel, werde länger und berühre dich nicht selbst. Alle 5 Äpfel wird es schneller.'
+    },
+    five: {
+      apples: 5,
+      chaser: false,
+      portals: false,
+      text: 'Fünf Äpfel liegen gleichzeitig auf dem Brett. Frisst du einen, kommt sofort ein neuer dazu.'
+    },
+    mika: {
+      apples: 1,
+      chaser: true,
+      portals: false,
+      text: 'Mika folgt dir langsam und wird mit der Zeit schneller. Berührt Mika dich, ist das Spiel vorbei.'
+    },
+    metash: {
+      apples: 1,
+      chaser: true,
+      portals: false,
+      text: 'Metash ist ein großer brauner Ball, der dir langsam folgt und immer schneller wird. Berührt er dich, ist das Spiel vorbei.'
+    }
+  };
+
+  var snake, dir, queue, foods, chaser, score, eaten, best;
+  var portals = null; // [{x,y}, {x,y}] or null
+  var portalCooldown = 0;
+  var particles = [];
+  var shake = 0;
+  var mode = 'normal';
+  var state = 'ready'; // ready | playing | paused | over
+  var wrapMode = false;
+  var tickMs = 150;
+  var acc = 0, last = 0, raf = 0;
+  var pendingNameScore = null;
+
+  function loadBest(m) {
+    try {
+      var v = parseInt(localStorage.getItem('snake-best-' + m), 10);
+      if (!v && m === 'normal') v = parseInt(localStorage.getItem('snake-best'), 10);
+      return v || 0;
+    } catch (e) { return 0; }
+  }
+  function saveBest(m, v) {
+    try { localStorage.setItem('snake-best-' + m, String(v)); } catch (e) { /* ignore */ }
+  }
+
+  function loadScores(m) {
+    try {
+      var raw = localStorage.getItem('snake-scores-' + m);
+      if (raw) {
+        var arr = JSON.parse(raw);
+        if (Array.isArray(arr)) return arr.slice(0, 5);
+      }
+      // migrate old single best
+      var old = loadBest(m);
+      if (old > 0) return [{ name: 'Rekord', score: old }];
+    } catch (e) {}
+    return [];
+  }
+  function saveScores(m, list) {
+    try {
+      localStorage.setItem('snake-scores-' + m, JSON.stringify(list.slice(0, 5)));
+      if (list.length) saveBest(m, list[0].score);
+    } catch (e) {}
+  }
+  function tryAddScore(m, sc, name) {
+    var list = loadScores(m);
+    list.push({ name: (name || 'Spieler').slice(0, 16), score: sc });
+    list.sort(function (a, b) { return b.score - a.score; });
+    list = list.slice(0, 5);
+    saveScores(m, list);
+    best = list.length ? list[0].score : 0;
+    return list;
+  }
+  function isHighscore(m, sc) {
+    if (sc <= 0) return false;
+    var list = loadScores(m);
+    return list.length < 5 || sc > list[list.length - 1].score;
+  }
+
+  /* ---------- player name (entered once, top left) ---------- */
+
+  var nameInput = document.getElementById('playerName');
+  nameInput.value = lsGet('snake-name', '') || '';
+  nameInput.addEventListener('input', function () {
+    lsSet('snake-name', nameInput.value.trim().slice(0, 16));
+  });
+  nameInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === 'Escape') nameInput.blur();
+  });
+  function playerName() { return nameInput.value.trim().slice(0, 16) || 'Spieler'; }
+
+  /* ---------- toasts ---------- */
+
+  var toastsEl = document.getElementById('toasts');
+  function toast(html) {
+    var t = document.createElement('div');
+    t.className = 'toast';
+    t.innerHTML = html;
+    toastsEl.appendChild(t);
+    setTimeout(function () { t.remove(); }, 3800);
+  }
+
+  /* ---------- stats + achievements ---------- */
+
+  var stats = lsGet('snake-stats', null) || {};
+  stats.games = stats.games || 0;
+  stats.apples = stats.apples || 0;
+  stats.modes = stats.modes || {};
+  function saveStats() { lsSet('snake-stats', stats); }
+
+  var achDone = lsGet('snake-ach', {}) || {};
+
+  // live values of the running round, filled by the game
+  var run = { score: 0, len: 3, level: 1, mode: 'normal', wrap: false };
+
+  function specialsOwned() {
+    var n = 0;
+    for (var i = 0; i < SPECIAL_KEYS.length; i++) if (owned.indexOf(SPECIAL_KEYS[i]) >= 0) n++;
+    return n;
+  }
+
+  var ACHIEVEMENTS = [
+    { id: 'apple1', icon: '🍎', name: 'Erster Bissen', desc: 'Friss deinen ersten Apfel.', reward: 5, test: function () { return stats.apples >= 1; } },
+    { id: 'score100', icon: '🔥', name: 'Hunger', desc: '100 Punkte in einer Runde.', reward: 10, test: function () { return run.score >= 100; } },
+    { id: 'score250', icon: '🍽️', name: 'Vielfraß', desc: '250 Punkte in einer Runde.', reward: 25, test: function () { return run.score >= 250; } },
+    { id: 'score500', icon: '👑', name: 'Unersättlich', desc: '500 Punkte in einer Runde.', reward: 60, test: function () { return run.score >= 500; } },
+    { id: 'len25', icon: '📏', name: 'Langer Lulatsch', desc: 'Werde 25 Felder lang.', reward: 25, test: function () { return run.len >= 25; } },
+    { id: 'speed5', icon: '⚡', name: 'Turbo', desc: 'Erreiche Tempo 5.', reward: 20, test: function () { return run.level >= 5; } },
+    { id: 'five300', icon: '🥗', name: 'Obstsalat', desc: '300 Punkte im Modus 5 Äpfel.', reward: 30, test: function () { return run.mode === 'five' && run.score >= 300; } },
+    { id: 'mika150', icon: '🏃', name: 'Mika abgehängt', desc: '150 Punkte im Modus Mika.', reward: 35, test: function () { return run.mode === 'mika' && run.score >= 150; } },
+    { id: 'metash150', icon: '🟤', name: 'Metash ausgetrickst', desc: '150 Punkte im Modus Metash.', reward: 45, test: function () { return run.mode === 'metash' && run.score >= 150; } },
+    { id: 'wrap150', icon: '🌀', name: 'Durch die Wand', desc: '150 Punkte mit durchlässigen Wänden.', reward: 15, test: function () { return run.wrap && run.score >= 150; } },
+    { id: 'allmodes', icon: '🎮', name: 'Allrounder', desc: 'Spiele jeden Modus mindestens einmal.', reward: 20, test: function () { return ['normal', 'five', 'mika', 'metash'].every(function (m) { return stats.modes[m]; }); } },
+    { id: 'games10', icon: '🔁', name: 'Dranbleiben', desc: 'Spiele 10 Runden.', reward: 15, test: function () { return stats.games >= 10; } },
+    { id: 'games50', icon: '🏅', name: 'Stammgast', desc: 'Spiele 50 Runden.', reward: 50, test: function () { return stats.games >= 50; } },
+    { id: 'apples500', icon: '🧺', name: 'Apfelernte', desc: 'Friss insgesamt 500 Äpfel.', reward: 60, test: function () { return stats.apples >= 500; } },
+    { id: 'skin1', icon: '🎨', name: 'Neuer Look', desc: 'Schalte deinen ersten Spezial-Skin frei.', reward: 10, test: function () { return specialsOwned() >= 1; } },
+    { id: 'skinall', icon: '💎', name: 'Sammler', desc: 'Schalte alle Spezial-Skins frei.', reward: 150, test: function () { return specialsOwned() >= SPECIAL_KEYS.length; } }
+  ];
+
+  function checkAchievements() {
+    var changed = false;
+    ACHIEVEMENTS.forEach(function (a) {
+      if (achDone[a.id] || !a.test()) return;
+      achDone[a.id] = Date.now();
+      changed = true;
+      addCoins(a.reward);
+      toast('🏆 Erfolg: <b>' + a.name + '</b> · +' + a.reward + ' Münzen');
+    });
+    if (changed) {
+      lsSet('snake-ach', achDone);
+      if (shopKey) openShop(shopKey);
+    }
+  }
+
+
+
+  function spawnParticles(cx, cy, color, count, speed) {
+    count = count || 12;
+    speed = speed || 2.2;
+    for (var i = 0; i < count; i++) {
+      var a = Math.random() * TAU;
+      var sp = speed * (0.4 + Math.random() * 0.9);
+      particles.push({
+        x: cx, y: cy,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp,
+        life: 1,
+        decay: 0.018 + Math.random() * 0.025,
+        r: 1.5 + Math.random() * 3.5,
+        color: color
+      });
+    }
+  }
+  function updateParticles(dt) {
+    var f = dt / 16.67;
+    for (var i = particles.length - 1; i >= 0; i--) {
+      var p = particles[i];
+      p.x += p.vx * f;
+      p.y += p.vy * f;
+      p.vy += 0.04 * f;
+      p.life -= p.decay * f;
+      if (p.life <= 0) particles.splice(i, 1);
+    }
+    if (shake > 0) shake = Math.max(0, shake - dt * 0.012);
+  }
+  function drawParticles(cell) {
+    for (var i = 0; i < particles.length; i++) {
+      var p = particles[i];
+      ctx.globalAlpha = Math.max(0, p.life);
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r * (0.6 + 0.4 * p.life), 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function level() { return 1 + Math.floor(eaten / 5); }
+  function speedFor(lv) { return Math.max(60, 150 - (lv - 1) * 12); }
+  // Mika moves in grid cells per second: slow at first, a little faster with every level
+  function chaserSpeed() { return Math.min(4.5, 1.8 + 0.25 * (level() - 1)); }
+
+  function updateHud() {
+    scoreEl.textContent = score;
+    bestEl.textContent = best;
+    levelEl.textContent = level();
+  }
+
+  function setLocked(lock) {
+    wrapBox.disabled = lock;
+    for (var i = 0; i < lockables.length; i++) lockables[i].disabled = lock;
+  }
+
+  function placeFood() {
+    var taken = {};
+    var i;
+    for (i = 0; i < snake.length; i++) taken[snake[i].x + ',' + snake[i].y] = true;
+    for (i = 0; i < foods.length; i++) taken[foods[i].x + ',' + foods[i].y] = true;
+    if (portals) {
+      for (i = 0; i < portals.length; i++) taken[portals[i].x + ',' + portals[i].y] = true;
+    }
+    var free = [];
+    for (var y = 0; y < N; y++) {
+      for (var x = 0; x < N; x++) {
+        if (!taken[x + ',' + y]) free.push({ x: x, y: y });
+      }
+    }
+    if (!free.length) return false;
+    foods.push(free[Math.floor(Math.random() * free.length)]);
+    return true;
+  }
+
+  function fillFoods() {
+    var want = MODES[mode].apples;
+    while (foods.length < want && placeFood()) { /* keep filling */ }
+  }
+
+  function spawnChaser() {
+    var corners = [[0, 0], [N - 1, 0], [0, N - 1], [N - 1, N - 1]];
+    var c = corners[Math.floor(Math.random() * corners.length)];
+    return { x: c[0], y: c[1] };
+  }
+
+  function spawnPortals() {
+    var taken = {};
+    var i;
+    for (i = 0; i < snake.length; i++) taken[snake[i].x + ',' + snake[i].y] = true;
+    for (i = 0; i < foods.length; i++) taken[foods[i].x + ',' + foods[i].y] = true;
+    var free = [];
+    for (var y = 1; y < N - 1; y++) {
+      for (var x = 1; x < N - 1; x++) {
+        if (!taken[x + ',' + y]) free.push({ x: x, y: y });
+      }
+    }
+    if (free.length < 2) return null;
+    // pick two that are reasonably far apart
+    var a = free[Math.floor(Math.random() * free.length)];
+    var best = null, bestD = -1;
+    for (i = 0; i < free.length; i++) {
+      var b = free[i];
+      var d = Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+      if (d > bestD) { bestD = d; best = b; }
+    }
+    if (!best || bestD < 6) {
+      // fallback: just two random
+      var i2 = Math.floor(Math.random() * free.length);
+      best = free[i2];
+      if (best.x === a.x && best.y === a.y) best = free[(i2 + 1) % free.length];
+    }
+    return [a, best];
+  }
+
+  function reset() {
+    snake = [{ x: 10, y: 10 }, { x: 9, y: 10 }, { x: 8, y: 10 }];
+    dir = { x: 1, y: 0 };
+    queue = [];
+    score = 0;
+    eaten = 0;
+    tickMs = speedFor(1);
+    foods = [];
+    fillFoods();
+    chaser = MODES[mode].chaser ? spawnChaser() : null;
+    portals = MODES[mode].portals ? spawnPortals() : null;
+    portalCooldown = 0;
+    particles = [];
+    shake = 0;
+    pendingNameScore = null;
+    updateHud();
+  }
+
+  function showOverlay(title, text, btnLabel) {
+    ovTitle.textContent = title;
+    ovText.textContent = text;
+    ovBtn.textContent = btnLabel;
+    overlay.hidden = false;
+  }
+
+  function start() {
+    wrapMode = wrapBox.checked;
+    reset();
+    setLocked(true);
+    skinsBox.open = false;
+    pauseBtn.disabled = false;
+    pauseBtn.textContent = 'Pause';
+    overlay.hidden = true;
+    hideShop();
+    state = 'playing';
+    acc = 0;
+    last = performance.now();
+    stats.games += 1;
+    stats.modes[mode] = true;
+    saveStats();
+    run.score = 0; run.len = snake.length; run.level = 1; run.mode = mode; run.wrap = wrapMode;
+    checkAchievements();
+  }
+
+  function togglePause() {
+    if (state === 'playing') {
+      state = 'paused';
+      pauseBtn.textContent = 'Weiter';
+      showOverlay('Pause', 'Leertaste oder Weiter drücken, um fortzufahren.', 'Weiter');
+    } else if (state === 'paused') {
+      state = 'playing';
+      pauseBtn.textContent = 'Pause';
+      overlay.hidden = true;
+      acc = 0;
+      last = performance.now();
+    }
+  }
+
+  function gameOver(won, byChaser) {
+    state = 'over';
+    var title = won ? 'Brett voll' : (byChaser ? (mode === 'metash' ? 'Metash hat dich gegessen' : 'Mika hat dich') : 'Game over');
+    var text = score + ' Punkte, Länge ' + snake.length + '.';
+    // the name from the top bar is used automatically, no prompt per round
+    if (isHighscore(mode, score)) {
+      tryAddScore(mode, score, playerName());
+      text += ' Neuer Highscore für ' + playerName() + '!';
+    }
+    // one coin per apple eaten this round
+    var earned = eaten;
+    addCoins(earned);
+    if (earned) text += ' +' + earned + ' Münzen.';
+    run.score = score; run.len = snake.length; run.level = level();
+    checkAchievements();
+    showOverlay(title, text, 'Nochmal');
+    setLocked(false);
+    pauseBtn.disabled = true;
+    pauseBtn.textContent = 'Pause';
+    // death particles
+    if (snake && snake[0]) {
+      var cell = cvs.width / N;
+      spawnParticles((snake[0].x + 0.5) * cell, (snake[0].y + 0.5) * cell, '#ff5d73', 22, 3.5);
+      shake = 1;
+    }
+    updateHud();
+  }
+
+  /* ---------- Mika, the chaser ---------- */
+
+  // distance on a grid cell axis; when walls are open the board is a torus, so fold to the short way round
+  function fold(d) {
+    if (!wrapMode) return d;
+    if (d > N / 2) return d - N;
+    if (d < -N / 2) return d + N;
+    return d;
+  }
+
+  // body radius of segment k in cell units (also used when drawing)
+  function radUnits(k, len) {
+    var t = len > 1 ? k / (len - 1) : 0;
+    return 0.42 - 0.22 * t * t;
+  }
+
+  function chaserRadius() {
+    return mode === 'metash' ? 0.72 : 0.24;
+  }
+
+  function chaserHit() {
+    var len = snake.length;
+    var cr = chaserRadius();
+    for (var i = 0; i < len; i++) {
+      var px = snake[i].x;
+      var py = snake[i].y;
+      var vx = fold(chaser.x - px);
+      var vy = fold(chaser.y - py);
+      var dx = 0, dy = 0, t = 0;
+      if (i + 1 < len) {
+        dx = fold(snake[i + 1].x - px);
+        dy = fold(snake[i + 1].y - py);
+        var dd = dx * dx + dy * dy;
+        t = dd ? Math.max(0, Math.min(1, (vx * dx + vy * dy) / dd)) : 0;
+      }
+      var ex = vx - t * dx;
+      var ey = vy - t * dy;
+      var reach = radUnits(i, len) + cr;
+      if (ex * ex + ey * ey < reach * reach) return true;
+    }
+    return false;
+  }
+
+  function moveChaser(seconds) {
+    var h = snake[0];
+    var dx = fold(h.x - chaser.x);
+    var dy = fold(h.y - chaser.y);
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > 0.001) {
+      var stepLen = Math.min(dist, chaserSpeed() * seconds);
+      chaser.x += dx / dist * stepLen;
+      chaser.y += dy / dist * stepLen;
+    }
+    if (wrapMode) {
+      chaser.x = (chaser.x + N) % N;
+      chaser.y = (chaser.y + N) % N;
+    }
+    if (chaserHit()) gameOver(false, true);
+  }
+
+  /* ---------- game step ---------- */
+
+  function step() {
+    if (queue.length) dir = queue.shift();
+    var head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+    if (wrapMode) {
+      head.x = (head.x + N) % N;
+      head.y = (head.y + N) % N;
+    } else if (head.x < 0 || head.y < 0 || head.x >= N || head.y >= N) {
+      gameOver(false);
+      return;
+    }
+    // portal teleport
+    if (portals && portalCooldown <= 0) {
+      for (var pi = 0; pi < 2; pi++) {
+        if (portals[pi].x === head.x && portals[pi].y === head.y) {
+          var other = portals[1 - pi];
+          head = { x: other.x, y: other.y };
+          portalCooldown = 2; // prevent instant bounce-back
+          var cellP = cvs.width / N;
+          spawnParticles((other.x + 0.5) * cellP, (other.y + 0.5) * cellP, '#7a5cff', 16, 2.8);
+          shake = 0.45;
+          break;
+        }
+      }
+    }
+    if (portalCooldown > 0) portalCooldown--;
+
+    var fi = -1;
+    for (var f = 0; f < foods.length; f++) {
+      if (foods[f].x === head.x && foods[f].y === head.y) { fi = f; break; }
+    }
+    var eating = fi >= 0;
+    var limit = eating ? snake.length : snake.length - 1;
+    for (var i = 0; i < limit; i++) {
+      if (snake[i].x === head.x && snake[i].y === head.y) { gameOver(false); return; }
+    }
+    snake.unshift(head);
+    if (eating) {
+      foods.splice(fi, 1);
+      score += 10;
+      eaten += 1;
+      tickMs = speedFor(level());
+      fillFoods();
+      var cellE = cvs.width / N;
+      spawnParticles((head.x + 0.5) * cellE, (head.y + 0.5) * cellE, C.food, 14, 2.6);
+      stats.apples += 1;
+      saveStats();
+      run.score = score; run.len = snake.length; run.level = level();
+      checkAchievements();
+      if (!foods.length) { updateHud(); gameOver(true); return; }
+      updateHud();
+    } else {
+      snake.pop();
+    }
+    if (chaser && chaserHit()) gameOver(false, true);
+  }
+
+  // one loop for everything: game logic only while playing, drawing always so animated colours keep moving
+  function loop(t) {
+    var dt = Math.max(0, Math.min(t - last, 250));
+    last = t;
+    if (state === 'playing') {
+      acc += dt;
+      while (acc >= tickMs && state === 'playing') {
+        step();
+        acc -= tickMs;
+      }
+      if (state === 'playing' && chaser) moveChaser(dt / 1000);
+    }
+    updateParticles(dt);
+    draw();
+    raf = requestAnimationFrame(loop);
+  }
+
+  function turn(nx, ny) {
+    if (state === 'ready') start();
+    if (state !== 'playing') return;
+    var ref = queue.length ? queue[queue.length - 1] : dir;
+    if ((nx === ref.x && ny === ref.y) || (nx === -ref.x && ny === -ref.y)) return;
+    if (queue.length < 2) queue.push({ x: nx, y: ny });
+  }
+
+  /* ---------- drawing ---------- */
+
+  // grid distance between neighbours, folded back to -1..1 when the snake wraps around an edge
+  function norm(d) { return d > 1 ? -1 : (d < -1 ? 1 : d); }
+
+  var SEG_CACHE = {};
+  function drawSnake(cell) {
+    var sk = SKINS[skinKey];
+    var now = performance.now();
+    var len = snake.length;
+    var i;
+    var pts = [];
+    for (i = 0; i < len; i++) {
+      pts.push({ x: (snake[i].x + 0.5) * cell, y: (snake[i].y + 0.5) * cell });
+    }
+    function rad(k) { return cell * radUnits(k, len); }
+    function px(v) { return Math.round(v); }
+
+    // direction from segment i toward previous (toward head)
+    function segDir(i) {
+      if (i === 0) return { x: dir.x, y: dir.y };
+      var dx = norm(snake[i - 1].x - snake[i].x);
+      var dy = norm(snake[i - 1].y - snake[i].y);
+      return { x: dx, y: dy };
+    }
+
+    if (sk.kind === 'metash') { drawMetash(); return; }
+
+    // Metash: millipede body (dark brown plates, rusty legs) with his pixel-art face as the head
+    function drawMetash() {
+      var p = Math.max(1, Math.round(cell / 14));
+      var OUT = '#0f0a0c', BODY = '#45302f', TOP = '#705656', TOP2 = '#7e6262', BOT = '#2a1e21', LEG = '#a04b2d';
+      var k, s, side, seg;
+
+      // legs first, so the plates sit on top of them
+      for (seg = len - 1; seg >= 1; seg--) {
+        var dL = segDir(seg);
+        var hwL = Math.max(3 * p, Math.round(rad(seg) * 1.05));
+        var wig = Math.sin(now / 80 + seg * 1.4);
+        ctx.save();
+        ctx.translate(px(pts[seg].x), px(pts[seg].y));
+        ctx.rotate(Math.atan2(dL.y, dL.x));
+        for (var pass = 0; pass < 2; pass++) {
+          ctx.fillStyle = pass ? LEG : OUT;
+          var o = pass ? 0 : 1;
+          for (side = -1; side <= 1; side += 2) {
+            for (k = -1; k <= 1; k += 2) {
+              var bx = k * cell * 0.22 + (k * side > 0 ? wig : -wig) * p;
+              for (s = 0; s < 4; s++) {
+                var lx = Math.round(bx - s * p);
+                var ly = side > 0 ? Math.round(hwL + s * p) : Math.round(-hwL - p - s * p);
+                ctx.fillRect(lx - o, ly - o, p + 2 * o, p + 2 * o);
+              }
+            }
+          }
+        }
+        ctx.restore();
+      }
+
+      // soft drop shadow under the body
+      ctx.save();
+      ctx.fillStyle = 'rgba(0,0,0,0.28)';
+      for (seg = len - 1; seg >= 1; seg--) {
+        ctx.beginPath();
+        ctx.arc(pts[seg].x, pts[seg].y + cell * 0.08, rad(seg) * 1.1, 0, TAU);
+        ctx.fill();
+      }
+      ctx.restore();
+
+      // armour plates, tail to head, each one overlapping the one behind it
+      for (seg = len - 1; seg >= 1; seg--) {
+        var d = segDir(seg);
+        var hw = Math.max(3 * p, Math.round(rad(seg) * 1.05));
+        var hl = Math.round(cell * 0.5 + Math.max(p, cell * 0.1));
+        if (seg === len - 1) hl = Math.round(cell * 0.45);
+        ctx.save();
+        ctx.translate(px(pts[seg].x), px(pts[seg].y));
+        ctx.rotate(Math.atan2(d.y, d.x));
+        ctx.fillStyle = OUT;
+        ctx.fillRect(-hl - p, -hw - p, 2 * hl + 2 * p, 2 * hw + 2 * p);
+        ctx.fillStyle = BODY;
+        ctx.fillRect(-hl, -hw, 2 * hl, 2 * hw);
+        var topH = Math.max(p, Math.round(hw * 0.5));
+        ctx.fillStyle = TOP;
+        ctx.fillRect(-hl, -hw, 2 * hl, topH);
+        ctx.fillStyle = TOP2;
+        ctx.fillRect(-hl, -hw, 2 * hl - p, p);
+        // bevelled front corner, like in the drawing
+        ctx.fillStyle = OUT;
+        ctx.fillRect(hl - p, -hw, p, p);
+        var botH = Math.max(p, Math.round(hw * 0.35));
+        ctx.fillStyle = BOT;
+        ctx.fillRect(-hl, hw - botH, 2 * hl, botH);
+        // pointed tail tip
+        if (seg === len - 1) {
+          ctx.fillStyle = OUT;
+          ctx.fillRect(-hl - 2 * p, -Math.round(hw * 0.4) - p, p, Math.round(hw * 0.8) + 2 * p);
+          ctx.fillStyle = BODY;
+          ctx.fillRect(-hl - p, -Math.round(hw * 0.4), p, Math.round(hw * 0.8));
+        }
+        ctx.restore();
+      }
+
+      // head: the face stays upright, a little bigger than one cell
+      var hwid = cell * 1.3;
+      var hhei = hwid * 46 / 42;
+      var bob = Math.round(Math.sin(now / 260) * p * 0.6);
+      ctx.save();
+      ctx.shadowColor = 'rgba(0,0,0,0.5)';
+      ctx.shadowBlur = cell * 0.25;
+      ctx.shadowOffsetY = cell * 0.05;
+      if (metashHead.complete && metashHead.naturalWidth) {
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(metashHead, px(pts[0].x - hwid / 2), px(pts[0].y - hhei / 2 + bob), Math.round(hwid), Math.round(hhei));
+      } else {
+        ctx.fillStyle = '#96694b';
+        ctx.beginPath();
+        ctx.arc(pts[0].x, pts[0].y, cell * 0.55, 0, TAU);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    // palette derived from skin
+    function palette(i) {
+      var body = i === 0 && sk.kind !== 'solid' ? headColor(sk, now) : bodyColor(sk, i, len, now);
+      var edge = edgeColor(sk, i, now);
+      var spot = spotColor(sk, i, now);
+      // derive belly (lighter / creamier)
+      var belly;
+      if (sk.kind === 'skeleton') belly = hsl(40, 8, 78);
+      else if (sk.kind === 'dragon') belly = hsl(30, 60, 55);
+      else if (sk.kind === 'lightning') belly = hsl(50, 40, 70);
+      else if (sk.kind === 'water') belly = hsl(190, 40, 72);
+      else if (sk.kind === 'ice') belly = hsl(190, 75, 88);
+      else if (sk.kind === 'cosmos') belly = hsl(260, 30, 40);
+      else if (sk.kind === 'neon') belly = '#1a2040';
+      else if (sk.kind === 'rainbow') belly = hsl(now / 14 + i * 22, 50, 75);
+      else {
+        // cream scale trim, like the reference sprite
+        belly = sk.kind === 'metal' ? hsl(sk.h, sk.s, 88) : '#e8dbab';
+      }
+      return { body: body, edge: edge, spot: spot, belly: belly };
+    }
+
+    // ---- pixel-art sprite in the style of the reference snake ----
+    // art pixel size: one grid cell is about 11 art pixels long
+    var P = Math.max(1, Math.round(cell / 11));
+    var SEG_W = Math.ceil(cell / P) + 2;
+
+    // eye colour per skin
+    var EYE = sk.kind === 'dragon' ? '#ff3a00' : (sk.kind === 'neon' ? '#2bf5ff' : (sk.kind === 'lightning' ? '#ffe566' : '#050805'));
+
+    function roleColors(pal, i) {
+      var special = sk.kind !== 'solid' && sk.kind !== 'metal';
+      return {
+        B: pal.body,
+        D: 'rgba(0,0,0,0.3)',
+        C: sk.chev || (special ? pal.spot : 'rgba(255,255,255,0.2)'),
+        L: sk.lime || (special ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.4)'),
+        T: pal.belly,
+        O: pal.edge,
+        E: EYE
+      };
+    }
+
+    // paint a role map: base fill B for all body pixels first, then the overlay roles
+    function paintRoles(cells, col, ox, oy) {
+      var order = ['O', 'B', 'D', 'C', 'L', 'T', 'E'];
+      for (var r = 0; r < order.length; r++) {
+        var role = order[r];
+        var list = cells[role];
+        if (role === 'B') list = cells.all;
+        if (!list || !list.length) continue;
+        ctx.fillStyle = col[role];
+        for (var q = 0; q < list.length; q++) {
+          ctx.fillRect(ox + list[q][0] * P, oy + list[q][1] * P, P, P);
+        }
+      }
+    }
+
+    // build (and cache) one scale segment: u runs from the head side (0) to the rounded tail side
+    function segCells(hc) {
+      var key = hc + ',' + SEG_W;
+      if (SEG_CACHE[key]) return SEG_CACHE[key];
+      var W = SEG_W, R = hc + 1;
+      var inside = {};
+      function isIn(u, v) { return !!inside[u + ',' + v]; }
+      var u, v, av, out = { all: [], O: [], D: [], C: [], L: [], T: [] };
+      for (u = 0; u < W; u++) {
+        for (v = -hc - 1; v <= hc + 1; v++) {
+          av = Math.abs(v);
+          var ok;
+          if (av <= hc) {
+            var cu = u - (W - 1 - R);
+            ok = cu <= 0 || cu * cu + v * v <= R * R + 0.5;
+          } else {
+            ok = u >= 1 && u <= W - 1 - R;
+          }
+          if (ok) inside[u + ',' + v] = true;
+        }
+      }
+      for (u = -1; u <= W; u++) {
+        for (v = -hc - 2; v <= hc + 2; v++) {
+          av = Math.abs(v);
+          if (isIn(u, v)) {
+            out.all.push([u, v]);
+            if (av === hc + 1) {
+              if (u <= 2 || u >= W - 2 - R) out.T.push([u, v]);
+              else out.C.push([u, v]);
+            }
+            else if (u <= 1 || av === hc) out.D.push([u, v]);
+            else {
+              var d = (u + av) % 5;
+              if (d === 3) out.L.push([u, v]);
+              else if (d === 2 || d === 4) out.C.push([u, v]);
+            }
+          } else {
+            var edge = false;
+            for (var a1 = -1; a1 <= 1 && !edge; a1++)
+              for (var b1 = -1; b1 <= 1; b1++)
+                if (isIn(u + a1, v + b1)) { edge = true; break; }
+            if (edge) out.O.push([u, v]);
+          }
+        }
+      }
+      SEG_CACHE[key] = out;
+      return out;
+    }
+
+    // head sprite, snout at column 0 (drawn facing +x)
+    var HEAD = [
+      '....OOOOOO....',
+      '..OOTCLCBBOO..',
+      '.OTEECLCBBBBO.',
+      '.OTEEDBCBCDBBO',
+      'OBBEDBCLCBDCBO',
+      'OBCBBDBCDBCLBO',
+      'OCLCDBLDBCLCBO',
+      'OBCBBDBCDBCLBO',
+      'OBBEDBCLCBDCBO',
+      '.OTEEDBCBCDBBO',
+      '.OTEECLCBBBBO.',
+      '..OOTCLCBBOO..',
+      '....OOOOOO....'
+    ];
+    function headCells() {
+      if (SEG_CACHE.head) return SEG_CACHE.head;
+      var out = { all: [], O: [], D: [], C: [], L: [], T: [], E: [] };
+      for (var r = 0; r < HEAD.length; r++) {
+        for (var c = 0; c < HEAD[r].length; c++) {
+          var ch = HEAD[r].charAt(c);
+          if (ch === '.') continue;
+          var cellXY = [HEAD[r].length - 1 - c, r];
+          if (ch === 'O') { out.O.push(cellXY); continue; }
+          out.all.push(cellXY);
+          if (out[ch]) out[ch].push(cellXY);
+        }
+      }
+      SEG_CACHE.head = out;
+      return out;
+    }
+
+    function drawSeg(i) {
+      var d = segDir(i);
+      var hc = Math.max(1, Math.floor(rad(i) / P) - 1);
+      var cells = segCells(hc);
+      ctx.save();
+      ctx.translate(px(pts[i].x), px(pts[i].y));
+      // +x points toward the tail, so the rounded edge overlaps the segment behind
+      ctx.rotate(Math.atan2(d.y, d.x) + Math.PI);
+      paintRoles(cells, roleColors(palette(i), i), -Math.round(cell / 2), -Math.round(P / 2));
+      ctx.restore();
+    }
+
+    // glow / shadow pass
+    ctx.save();
+    if (sk.glow) {
+      ctx.shadowColor = sk.glow;
+      ctx.shadowBlur = cell * 0.6;
+    } else {
+      ctx.shadowColor = 'rgba(0,0,0,0.45)';
+      ctx.shadowBlur = cell * 0.2;
+      ctx.shadowOffsetY = cell * 0.04;
+    }
+    for (i = len - 1; i >= 0; i--) {
+      var r = rad(i);
+      var d = segDir(i);
+      var pal = palette(i);
+      // simple circle for shadow volume
+      ctx.fillStyle = pal.body;
+      ctx.beginPath();
+      ctx.arc(pts[i].x, pts[i].y, r * 0.95, 0, TAU);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // scale segments, tail first so each one overlaps the one behind it
+    for (i = len - 1; i >= 1; i--) drawSeg(i);
+
+    // ========== HEAD (detailed like reference) ==========
+    ctx.save();
+    ctx.translate(pts[0].x, pts[0].y);
+    ctx.rotate(Math.atan2(dir.y, dir.x));
+    var palH = palette(0);
+    var hr = cell * 0.48;
+
+    // head sprite (14 x 13 art pixels), centred on the head cell
+    paintRoles(headCells(), roleColors(palH, 0), -Math.round(6 * P), -Math.round(6.5 * P));
+
+    // tongue: forked, red, flicks out from the snout
+    var phase = (now % 1800) / 1800;
+    var flick = phase < 0.4 ? Math.sin(phase / 0.4 * Math.PI) : 0;
+    if (flick > 0.05 && sk.kind !== 'skeleton') {
+      ctx.fillStyle = sk.kind === 'dragon' ? '#ff4a1a' : (sk.kind === 'lightning' ? '#ffe566' : '#d8323c');
+      var base = 8 * P;
+      var tl = Math.max(P, Math.round(4 * P * flick));
+      ctx.fillRect(base, -Math.round(P / 2), tl, P);
+      if (flick > 0.5) {
+        ctx.fillRect(base + tl, -Math.round(P * 1.5), P, P);
+        ctx.fillRect(base + tl, Math.round(P / 2), P, P);
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.fillRect(base + tl, -Math.round(P * 1.5), P, Math.round(P / 3));
+      }
+    }
+
+    // dragon horns
+    if (sk.kind === 'dragon') {
+      for (var h = -1; h <= 1; h += 2) {
+        for (var step = 0; step < 5; step++) {
+          var t = step / 4;
+          var hw = Math.round(cell * (0.11 - t * 0.07));
+          var hh = Math.round(cell * 0.07);
+          var hx = -hr * 0.15 - t * cell * 0.2;
+          var hy = h * (hr * 0.55 + t * cell * 0.32);
+          ctx.fillStyle = hsl(12 - t * 4, 75, 26 + t * 12);
+          ctx.fillRect(Math.round(hx - hw / 2), Math.round(hy - hh / 2), hw, hh);
+        }
+        ctx.fillStyle = hsl(28, 100, 55);
+        ctx.fillRect(Math.round(-hr * 0.15 - cell * 0.2 - 1), Math.round(h * (hr * 0.55 + cell * 0.32) - 1), 3, 3);
+      }
+    }
+
+    // eye glints (from the sprite's eye positions)
+    if (sk.kind !== 'skeleton') {
+      ctx.fillStyle = sk.kind === 'lightning' ? '#1a1a2e' : 'rgba(255,255,255,0.75)';
+      ctx.fillRect(Math.round(4 * P), Math.round(-4.5 * P), Math.max(1, Math.round(P / 2)), Math.max(1, Math.round(P / 2)));
+      ctx.fillRect(Math.round(4 * P), Math.round(1.5 * P), Math.max(1, Math.round(P / 2)), Math.max(1, Math.round(P / 2)));
+    }
+
+    // skeleton teeth
+    if (sk.kind === 'skeleton') {
+      ctx.fillStyle = 'rgba(40,35,30,0.8)';
+      ctx.fillRect(Math.round(hr * 0.3), Math.round(hr * 0.35), Math.round(hr * 0.55), 2);
+      ctx.fillStyle = 'rgba(230,225,210,0.9)';
+      for (var tth = 0; tth < 3; tth++) {
+        ctx.fillRect(Math.round(hr * 0.35 + tth * hr * 0.15), Math.round(hr * 0.35), 2, 4);
+      }
+    }
+
+    // dragon fire breath
+    if (sk.kind === 'dragon') {
+      var fb = 0.5 + 0.5 * Math.sin(now / 60);
+      if (fb > 0.3) {
+        ctx.globalAlpha = 0.7 * fb;
+        var fs = Math.round(cell * 0.16 * fb);
+        ctx.fillStyle = hsl(20, 100, 48);
+        ctx.fillRect(Math.round(hr * 0.95), -fs / 2, fs + 2, fs);
+        ctx.fillStyle = hsl(38, 100, 58);
+        ctx.fillRect(Math.round(hr * 1.1), -fs / 3, Math.round(fs * 0.7), Math.round(fs * 0.65));
+        ctx.fillStyle = hsl(50, 100, 72);
+        ctx.fillRect(Math.round(hr * 1.2), -2, 3, 3);
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    ctx.restore();
+
+    // ========== EXTRA SKIN EFFECTS (world space) ==========
+
+    // skeleton ribs
+    if (sk.kind === 'skeleton') {
+      for (i = 1; i < len; i++) {
+        var rS = rad(i);
+        var dS = segDir(i);
+        var angS = Math.atan2(dS.y, dS.x) + Math.PI / 2;
+        ctx.save();
+        ctx.translate(px(pts[i].x), px(pts[i].y));
+        ctx.rotate(angS);
+        var bw = Math.round(rS * 1.5);
+        ctx.fillStyle = 'rgba(40,35,30,0.7)';
+        ctx.fillRect(-bw / 2, -1, bw, 2);
+        ctx.fillStyle = 'rgba(230,225,210,0.75)';
+        ctx.fillRect(-bw / 2 - 1, -2, 3, 4);
+        ctx.fillRect(bw / 2 - 2, -2, 3, 4);
+        ctx.restore();
+      }
+    }
+
+    // dragon embers
+    if (sk.kind === 'dragon') {
+      for (i = 1; i < len; i++) {
+        if ((i + Math.floor(now / 85)) % 2 !== 0) continue;
+        var rD = rad(i);
+        var fl = 0.5 + 0.5 * Math.sin(now / 50 + i * 1.6);
+        var sz = Math.max(2, Math.round(cell * (0.06 + 0.05 * fl)));
+        var fx = pts[i].x + Math.sin(now / 90 + i) * rD * 0.35;
+        var fy = pts[i].y - rD * 0.5 - fl * cell * 0.08;
+        ctx.globalAlpha = 0.5 + 0.4 * fl;
+        ctx.fillStyle = hsl(16 + 30 * fl, 100, 48);
+        ctx.fillRect(Math.round(fx - sz / 2), Math.round(fy - sz / 2), sz, sz);
+        if (fl > 0.6) {
+          ctx.fillStyle = hsl(45, 100, 68);
+          ctx.fillRect(Math.round(fx - 1), Math.round(fy - sz - 1), 2, 2);
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // lightning sparks
+    if (sk.kind === 'lightning') {
+      ctx.strokeStyle = '#ffe566';
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'square';
+      for (i = 1; i < len; i++) {
+        if (Math.sin(now / 40 + i * 2.2) < 0.62) continue;
+        var rL = rad(i);
+        var jx = pts[i].x + ((i * 17 + Math.floor(now / 28)) % 7 - 3) / 3 * rL;
+        var jy = pts[i].y + ((i * 23 + Math.floor(now / 35)) % 7 - 3) / 3 * rL;
+        ctx.globalAlpha = 0.55 + 0.45 * Math.abs(Math.sin(now / 25 + i));
+        ctx.beginPath();
+        ctx.moveTo(px(pts[i].x), px(pts[i].y));
+        ctx.lineTo(px((pts[i].x + jx) / 2 + rL * 0.15), px((pts[i].y + jy) / 2 - rL * 0.25));
+        ctx.lineTo(px(jx), px(jy));
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // water bubbles
+    if (sk.kind === 'water') {
+      for (i = 1; i < len; i++) {
+        var pw = (now / 360 + i * 0.6) % 1;
+        if (pw > 0.72) continue;
+        var rW = rad(i);
+        var bx = pts[i].x + Math.sin(now / 450 + i * 1.1) * rW * 0.6;
+        var by = pts[i].y - rW * 0.2 - pw * cell * 0.38;
+        var bs = Math.max(2, Math.round(cell * 0.065 * (1 - pw * 0.4)));
+        ctx.globalAlpha = 0.55 * (1 - pw / 0.72);
+        ctx.fillStyle = 'rgba(150,225,255,0.9)';
+        ctx.fillRect(Math.round(bx - bs / 2), Math.round(by - bs / 2), bs, bs);
+        ctx.fillStyle = 'rgba(255,255,255,0.8)';
+        ctx.fillRect(Math.round(bx - bs / 2), Math.round(by - bs / 2), Math.max(1, bs / 2), Math.max(1, bs / 2));
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // ice crystals and drifting frost pixels
+    if (sk.kind === 'ice') {
+      for (i = 1; i < len; i++) {
+        var icePulse = 0.5 + 0.5 * Math.sin(now / 260 + i * 1.7);
+        var ir = rad(i);
+        var ix = pts[i].x + Math.sin(now / 500 + i) * ir * 0.45;
+        var iy = pts[i].y - ir * 0.48 - icePulse * cell * 0.08;
+        var isz = Math.max(2, Math.round(cell * 0.075));
+        ctx.globalAlpha = 0.45 + icePulse * 0.45;
+        ctx.fillStyle = '#eaffff';
+        ctx.fillRect(Math.round(ix - isz), Math.round(iy), isz * 2 + 1, 1);
+        ctx.fillRect(Math.round(ix), Math.round(iy - isz), 1, isz * 2 + 1);
+        ctx.fillRect(Math.round(ix - 1), Math.round(iy - 1), 3, 3);
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // metallic skins catch a moving pixel highlight; gold also emits tiny glints
+    if (sk.kind === 'metal') {
+      for (i = 1; i < len; i++) {
+        var mr = rad(i);
+        var shine = 0.5 + 0.5 * Math.sin(now / 310 + i * 0.85);
+        ctx.globalAlpha = 0.16 + shine * 0.3;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(Math.round(pts[i].x - mr * 0.35), Math.round(pts[i].y - mr * 0.48), Math.max(2, Math.round(mr * 0.8)), 2);
+        if (sk.name === 'Gold' && shine > 0.86) {
+          ctx.globalAlpha = 0.9;
+          ctx.fillStyle = '#fff2a6';
+          ctx.fillRect(Math.round(pts[i].x + mr * 0.45), Math.round(pts[i].y - mr * 0.8), 2, 2);
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // neon skin: animated pixel sparks around the glowing shell
+    if (sk.kind === 'neon') {
+      for (i = 1; i < len; i++) {
+        if (Math.sin(now / 75 + i * 2.4) < 0.35) continue;
+        var nr = rad(i);
+        var nxp = pts[i].x + Math.cos(now / 100 + i) * nr * 1.12;
+        var nyp = pts[i].y + Math.sin(now / 120 + i * 1.8) * nr * 1.12;
+        ctx.globalAlpha = 0.8;
+        ctx.fillStyle = i % 2 ? '#2bf5ff' : '#ff3df0';
+        ctx.fillRect(Math.round(nxp), Math.round(nyp), 2, 2);
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // galaxy stars
+    if (sk.kind === 'galaxy') {
+      for (i = 1; i < len; i++) {
+        var rr = rad(i);
+        for (var q = 0; q < 2; q++) {
+          var ox = (((i * 37 + q * 19) % 11) - 5) / 11 * rr * 1.25;
+          var oy = (((i * 53 + q * 29) % 11) - 5) / 11 * rr * 1.25;
+          ctx.globalAlpha = 0.3 + 0.7 * Math.abs(Math.sin(now / 250 + i * 1.8 + q * 2.1));
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(Math.round(pts[i].x + ox), Math.round(pts[i].y + oy), 2, 2);
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // cosmos planets
+    if (sk.kind === 'cosmos') {
+      var hxP = pts[0].x, hyP = pts[0].y;
+      var planetData = [
+        { dist: cell * 0.95, size: Math.max(3, cell * 0.09), speed: 0.0012, hue: 20, phase: 0 },
+        { dist: cell * 1.28, size: Math.max(2, cell * 0.07), speed: -0.0009, hue: 200, phase: 2.1 },
+        { dist: cell * 1.58, size: Math.max(2, cell * 0.055), speed: 0.0007, hue: 45, phase: 4.0 }
+      ];
+      for (var pl = 0; pl < planetData.length; pl++) {
+        var pd = planetData[pl];
+        var ang = now * pd.speed + pd.phase;
+        var ppx = hxP + Math.cos(ang) * pd.dist;
+        var ppy = hyP + Math.sin(ang) * pd.dist;
+        ctx.globalAlpha = 0.14;
+        for (var o = 0; o < 14; o++) {
+          var oa = (o / 14) * TAU;
+          ctx.fillStyle = '#9b6bff';
+          ctx.fillRect(Math.round(hxP + Math.cos(oa) * pd.dist), Math.round(hyP + Math.sin(oa) * pd.dist), 1, 1);
+        }
+        ctx.globalAlpha = 0.95;
+        var psz = Math.round(pd.size);
+        ctx.fillStyle = hsl(pd.hue, 70, 50);
+        for (var py2 = -psz; py2 <= psz; py2++)
+          for (var px2 = -psz; px2 <= psz; px2++)
+            if (px2 * px2 + py2 * py2 <= psz * psz) ctx.fillRect(Math.round(ppx) + px2, Math.round(ppy) + py2, 1, 1);
+        ctx.fillStyle = 'rgba(255,255,255,0.45)';
+        ctx.fillRect(Math.round(ppx - psz * 0.3), Math.round(ppy - psz * 0.3), Math.max(1, Math.round(psz * 0.35)), Math.max(1, Math.round(psz * 0.35)));
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function drawChaser(cell) {
+    if (!chaser) return;
+    var now = performance.now();
+    var isMetash = mode === 'metash';
+    var x = (chaser.x + 0.5) * cell;
+    var y = (chaser.y + 0.5) * cell;
+    var r = cell * (isMetash ? 1.02 : 0.34);
+
+    if (isMetash) {
+      var pulse = 0.5 + 0.5 * Math.sin(now / 380);
+      var brown1 = hsl(28 + 6 * pulse, 55 + 15 * pulse, 28 + 8 * pulse);
+      var brown2 = hsl(22, 48, 18);
+      var glowCol = hsl(30, 70, 42 + 10 * pulse);
+      ctx.save();
+      ctx.shadowColor = glowCol;
+      ctx.shadowBlur = cell * (1.1 + 0.35 * pulse);
+      ctx.fillStyle = brown2;
+      ctx.beginPath();
+      ctx.arc(x, y, r * 1.08, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = brown1;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, TAU);
+      ctx.fill();
+      ctx.restore();
+      ctx.save();
+      ctx.globalAlpha = 0.35 + 0.15 * pulse;
+      ctx.fillStyle = hsl(18, 40, 14);
+      for (var p = 0; p < 5; p++) {
+        var ang = now / 900 + p * 1.3;
+        var pr = r * (0.35 + 0.25 * ((p * 17) % 10) / 10);
+        var ox = x + Math.cos(ang) * r * 0.45;
+        var oy = y + Math.sin(ang * 1.1) * r * 0.4;
+        ctx.beginPath();
+        ctx.arc(ox, oy, pr, 0, TAU);
+        ctx.fill();
+      }
+      ctx.restore();
+      ctx.fillStyle = 'rgba(255, 220, 170, 0.28)';
+      ctx.beginPath();
+      ctx.arc(x - r * 0.32, y - r * 0.32, r * 0.38, 0, TAU);
+      ctx.fill();
+    } else {
+      var hue = (now / 25) % 360;
+      ctx.save();
+      ctx.shadowColor = hsl(hue, 90, 60);
+      ctx.shadowBlur = cell * 0.8;
+      ctx.fillStyle = hsl(hue, 90, 62);
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, TAU);
+      ctx.fill();
+      ctx.restore();
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+      ctx.beginPath();
+      ctx.arc(x - r * 0.3, y - r * 0.3, r * 0.3, 0, TAU);
+      ctx.fill();
+    }
+
+    var word = isMetash ? 'Metash' : 'Mika';
+    var size = Math.max(10, cell * (isMetash ? 0.78 : 0.62));
+    ctx.save();
+    ctx.font = '700 ' + size + 'px ' + FONT;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    var widths = [];
+    var total = 0;
+    var k;
+    for (k = 0; k < word.length; k++) {
+      widths.push(ctx.measureText(word.charAt(k)).width);
+      total += widths[k];
+    }
+    var lx = Math.max(cell * 0.2, Math.min(cvs.width - total - cell * 0.2, x - total / 2));
+    var ly = y - r - size * 0.65;
+    if (ly < size * 0.6) ly = y + r + size * 0.65;
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = Math.max(2, size * 0.28);
+    ctx.strokeStyle = C.bg;
+    var tx = lx;
+    for (k = 0; k < word.length; k++) {
+      ctx.strokeText(word.charAt(k), tx, ly);
+      tx += widths[k];
+    }
+    tx = lx;
+    for (k = 0; k < word.length; k++) {
+      if (isMetash) {
+        var t = 0.5 + 0.5 * Math.sin(now / 420 + k * 0.9);
+        ctx.fillStyle = hsl(32 + k * 4, 70, 52 + 12 * t);
+      } else {
+        var hue2 = (now / 25) % 360;
+        ctx.fillStyle = hsl(hue2 + k * 45, 90, 64);
+      }
+      ctx.fillText(word.charAt(k), tx, ly);
+      tx += widths[k];
+    }
+    ctx.restore();
+  }
+
+  function draw() {
+    var w = cvs.width;
+    if (!w || !snake) return;
+    var cell = w / N;
+
+    ctx.save();
+    if (shake > 0) {
+      var mag = shake * cell * 0.35;
+      ctx.translate((Math.random() - 0.5) * mag, (Math.random() - 0.5) * mag);
+    }
+
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = C.surface;
+    ctx.fillRect(0, 0, w, w);
+
+    ctx.fillStyle = C.line;
+    var dotR = Math.max(1, cell * 0.05);
+    for (var gy = 0; gy < N; gy++) {
+      for (var gx = 0; gx < N; gx++) {
+        ctx.beginPath();
+        ctx.arc((gx + 0.5) * cell, (gy + 0.5) * cell, dotR, 0, TAU);
+        ctx.fill();
+      }
+    }
+
+    // portals
+    if (portals) {
+      var now = performance.now();
+      for (var pi = 0; pi < portals.length; pi++) {
+        var px = (portals[pi].x + 0.5) * cell;
+        var py = (portals[pi].y + 0.5) * cell;
+        var pr = cell * 0.38;
+        var hueP = (now / 20 + pi * 180) % 360;
+        ctx.save();
+        ctx.shadowColor = hsl(hueP, 80, 55);
+        ctx.shadowBlur = cell * 0.9;
+        // outer ring
+        ctx.strokeStyle = hsl(hueP, 85, 60);
+        ctx.lineWidth = cell * 0.1;
+        ctx.beginPath();
+        ctx.arc(px, py, pr, 0, TAU);
+        ctx.stroke();
+        // swirling fill
+        var grd = ctx.createRadialGradient(px, py, 0, px, py, pr);
+        grd.addColorStop(0, hsl(hueP, 70, 25));
+        grd.addColorStop(0.6, hsl(hueP + 40, 60, 18));
+        grd.addColorStop(1, 'rgba(0,0,0,0.6)');
+        ctx.fillStyle = grd;
+        ctx.beginPath();
+        ctx.arc(px, py, pr * 0.85, 0, TAU);
+        ctx.fill();
+        // spinning arc
+        ctx.strokeStyle = hsl(hueP + 60, 90, 70);
+        ctx.lineWidth = cell * 0.06;
+        ctx.beginPath();
+        ctx.arc(px, py, pr * 0.55, now / 200 + pi, now / 200 + pi + 2.2);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    ctx.save();
+    ctx.shadowColor = C.food;
+    ctx.shadowBlur = cell * 0.7;
+    ctx.fillStyle = C.food;
+    for (var f = 0; f < foods.length; f++) {
+      ctx.beginPath();
+      ctx.arc((foods[f].x + 0.5) * cell, (foods[f].y + 0.5) * cell, cell * 0.3, 0, TAU);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    drawSnake(cell);
+    drawChaser(cell);
+    drawParticles(cell);
+    ctx.restore();
+  }
+
+  function resize() {
+    var r = cvs.getBoundingClientRect();
+    var dpr = window.devicePixelRatio || 1;
+    cvs.width = Math.round(r.width * dpr);
+    cvs.height = Math.round(r.height * dpr);
+    draw();
+  }
+
+  /* ---------- input ---------- */
+
+  var KEYS = {
+    ArrowUp: [0, -1], KeyW: [0, -1],
+    ArrowDown: [0, 1], KeyS: [0, 1],
+    ArrowLeft: [-1, 0], KeyA: [-1, 0],
+    ArrowRight: [1, 0], KeyD: [1, 0]
+  };
+
+  document.addEventListener('keydown', function (e) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.code === 'Escape') { closePanels(); return; }
+    // typing a name or moving a slider must not steer the snake
+    var tg = e.target;
+    if (tg && (tg.type === 'text' || tg.type === 'range')) return;
+    if (!setPanel.hidden || !achPanel.hidden || !hsPanel.hidden) return;
+    var d = KEYS[e.code];
+    if (d) {
+      // let arrow keys move between the radio options while a picker has focus and no round is running
+      var nm = e.target && e.target.name;
+      if ((nm === 'mode' || nm === 'skin') && state !== 'playing' && state !== 'paused') return;
+      e.preventDefault();
+      turn(d[0], d[1]);
+      return;
+    }
+    if (e.code === 'Space' || e.code === 'Enter') {
+      if (e.target && e.target.closest && e.target.closest('button, input, summary')) return;
+      e.preventDefault();
+      if (state === 'playing' || state === 'paused') togglePause();
+      else start();
+    }
+  });
+
+  ovBtn.addEventListener('click', function () {
+    if (state === 'paused') togglePause();
+    else start();
+  });
+  pauseBtn.addEventListener('click', togglePause);
+
+  function onModeChange(e) {
+    if (!e.target.checked) return;
+    mode = e.target.value;
+    best = (loadScores(mode)[0] && loadScores(mode)[0].score) || loadBest(mode) || 0;
+    if (state === 'over') {
+      state = 'ready';
+      pauseBtn.disabled = true;
+    }
+    if (state === 'ready') {
+      reset();
+      showOverlay('Bereit?', MODES[mode].text, 'Spiel starten');
+    } else {
+      updateHud();
+    }
+  }
+  function onSkinChange(e) {
+    if (!e.target.checked) return;
+    if (!isOwned(e.target.value)) {
+      // keyboard selection of a locked skin: revert and offer it in the shop
+      var cur = document.querySelector('input[name="skin"][value="' + skinKey + '"]');
+      if (cur) cur.checked = true;
+      openShop(e.target.value);
+      return;
+    }
+    skinKey = e.target.value;
+    try { localStorage.setItem('snake-skin', skinKey); } catch (err) { /* ignore */ }
+    updateSkinSummary();
+  }
+  for (var mi = 0; mi < lockables.length; mi++) {
+    lockables[mi].addEventListener('change', lockables[mi].name === 'mode' ? onModeChange : onSkinChange);
+  }
+
+  // after a mouse or touch pick, drop focus from the radio so arrow keys steer the snake instead of switching options
+  document.addEventListener('pointerup', function () {
+    setTimeout(function () {
+      var a = document.activeElement;
+      if (a && (a.name === 'mode' || a.name === 'skin')) a.blur();
+    }, 30);
+  });
+
+  var sx = 0, sy = 0, tracking = false;
+  boardWrap.addEventListener('pointerdown', function (e) {
+    if (e.target.closest && e.target.closest('button')) return;
+    sx = e.clientX; sy = e.clientY; tracking = true;
+  });
+  boardWrap.addEventListener('pointermove', function (e) {
+    if (!tracking) return;
+    var dx = e.clientX - sx;
+    var dy = e.clientY - sy;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return;
+    if (Math.abs(dx) > Math.abs(dy)) turn(dx > 0 ? 1 : -1, 0);
+    else turn(0, dy > 0 ? 1 : -1);
+    sx = e.clientX; sy = e.clientY;
+  });
+  function endTrack() { tracking = false; }
+  boardWrap.addEventListener('pointerup', endTrack);
+  boardWrap.addEventListener('pointercancel', endTrack);
+
+  var DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+  pad.addEventListener('pointerdown', function (e) {
+    var b = e.target.closest && e.target.closest('button[data-dir]');
+    if (!b) return;
+    e.preventDefault();
+    var d = DIRS[b.getAttribute('data-dir')];
+    turn(d[0], d[1]);
+  });
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden && state === 'playing') togglePause();
+  });
+
+
+  /* ---------- highscores UI ---------- */
+  var hsPanel = document.getElementById('hsPanel');
+  var hsList = document.getElementById('hsList');
+  var hsTabs = document.getElementById('hsTabs');
+  var hsBtn = document.getElementById('hsBtn');
+  var hsClose = document.getElementById('hsClose');
+  var MODE_LABELS = { normal: 'Normal', five: '5 Äpfel', mika: 'Mika', metash: 'Metash' };
+  var hsActiveMode = 'normal';
+
+  function renderHsList(m) {
+    hsActiveMode = m;
+    var list = loadScores(m);
+    hsList.innerHTML = '';
+    if (!list.length) {
+      var empty = document.createElement('p');
+      empty.className = 'hs-empty';
+      empty.textContent = 'Noch keine Einträge';
+      hsList.appendChild(empty);
+    } else {
+      list.forEach(function (entry, idx) {
+        var li = document.createElement('li');
+        li.innerHTML = '<span class="hs-rank">' + (idx + 1) + '.</span>' +
+          '<span class="hs-name"></span><span class="hs-score"></span>';
+        li.querySelector('.hs-name').textContent = entry.name;
+        li.querySelector('.hs-score').textContent = entry.score;
+        hsList.appendChild(li);
+      });
+    }
+    // update tabs
+    var tabs = hsTabs.querySelectorAll('.hs-tab');
+    for (var i = 0; i < tabs.length; i++) {
+      tabs[i].classList.toggle('active', tabs[i].dataset.mode === m);
+    }
+  }
+
+  function openHs() {
+    hsTabs.innerHTML = '';
+    Object.keys(MODE_LABELS).forEach(function (m) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'hs-tab' + (m === mode ? ' active' : '');
+      btn.dataset.mode = m;
+      btn.textContent = MODE_LABELS[m];
+      btn.onclick = function () { renderHsList(m); };
+      hsTabs.appendChild(btn);
+    });
+    renderHsList(mode);
+    hsPanel.hidden = false;
+  }
+  function closeHs() { hsPanel.hidden = true; }
+  function pauseForPanel() { if (state === 'playing') togglePause(); }
+  hsBtn.addEventListener('click', function () { pauseForPanel(); openHs(); });
+  hsClose.addEventListener('click', closeHs);
+  hsPanel.addEventListener('click', function (e) {
+    if (e.target === hsPanel) closeHs();
+  });
+
+  /* ---------- settings (gear) ---------- */
+  var setPanel = document.getElementById('setPanel');
+  document.getElementById('setBtn').addEventListener('click', function () {
+    pauseForPanel();
+    setPanel.hidden = false;
+  });
+  document.getElementById('setClose').addEventListener('click', function () { setPanel.hidden = true; });
+  setPanel.addEventListener('click', function (e) { if (e.target === setPanel) setPanel.hidden = true; });
+
+  /* ---------- achievements UI ---------- */
+  var achPanel = document.getElementById('achPanel');
+  var achList = document.getElementById('achList');
+  function openAch() {
+    var done = 0;
+    achList.innerHTML = '';
+    ACHIEVEMENTS.forEach(function (a) {
+      var ok = !!achDone[a.id];
+      if (ok) done++;
+      var li = document.createElement('li');
+      li.className = ok ? '' : 'locked';
+      li.innerHTML = '<span class="ach-ico"></span><span><span class="ach-name"></span><br><span class="ach-desc"></span></span><span class="ach-rew"></span>';
+      li.querySelector('.ach-ico').textContent = ok ? a.icon : '🔒';
+      li.querySelector('.ach-name').textContent = a.name;
+      li.querySelector('.ach-desc').textContent = a.desc;
+      li.querySelector('.ach-rew').textContent = ok ? '✓' : '+' + a.reward;
+      achList.appendChild(li);
+    });
+    document.getElementById('achSum').textContent = done + ' von ' + ACHIEVEMENTS.length + ' freigeschaltet · ' +
+      stats.games + ' Runden · ' + stats.apples + ' Äpfel';
+    pauseForPanel();
+    achPanel.hidden = false;
+  }
+  document.getElementById('achBtn').addEventListener('click', openAch);
+  document.getElementById('achClose').addEventListener('click', function () { achPanel.hidden = true; });
+  achPanel.addEventListener('click', function (e) { if (e.target === achPanel) achPanel.hidden = true; });
+
+  function closePanels() { hsPanel.hidden = true; setPanel.hidden = true; achPanel.hidden = true; }
+
+  /* ---------- boot ---------- */
+
+  best = (loadScores(mode)[0] && loadScores(mode)[0].score) || loadBest(mode) || 0;
+  reset();
+  if (window.ResizeObserver) new ResizeObserver(resize).observe(boardWrap);
+  window.addEventListener('resize', resize);
+  resize();
+  last = performance.now();
+  raf = requestAnimationFrame(loop);
+})();
+</script>
+
+<script>
+/* ---------- Hintergrundmusik (Endlosschleife) ---------- */
+(function () {
+  var KEY = 'snake_music_on';
+  var on = true;
+  try { if (localStorage.getItem(KEY) === '0') on = false; } catch (e) {}
+
+  var VOL_KEY = 'snake_music_vol';
+  var vol = 60;
+  try {
+    var sv = parseInt(localStorage.getItem(VOL_KEY), 10);
+    if (!isNaN(sv)) vol = Math.max(0, Math.min(100, sv));
+  } catch (e) {}
+
+  var audio = new Audio('music.ogg');
+  audio.loop = true;
+  audio.preload = 'auto';
+  audio.volume = vol / 100;
+
+  var btn = document.getElementById('musicBtn');
+  var slider = document.getElementById('musicVol');
+  var volVal = document.getElementById('musicVolVal');
+  function label() {
+    btn.textContent = on ? 'An' : 'Aus';
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    slider.value = vol;
+    volVal.textContent = vol + ' %';
+  }
+  slider.addEventListener('input', function () {
+    vol = parseInt(slider.value, 10) || 0;
+    audio.volume = vol / 100;
+    volVal.textContent = vol + ' %';
+    try { localStorage.setItem(VOL_KEY, String(vol)); } catch (e) {}
+  });
+  function play() {
+    if (!on || document.hidden) return;
+    var p = audio.play();
+    if (p && p.catch) p.catch(function () {});
+  }
+
+  /* Browser erlauben Ton meist erst nach der ersten Eingabe */
+  var gestures = ['pointerdown', 'touchstart', 'keydown', 'click'];
+  function onGesture() { if (audio.paused) play(); }
+  function removeGestures() {
+    gestures.forEach(function (ev) { document.removeEventListener(ev, onGesture, true); });
+  }
+  gestures.forEach(function (ev) { document.addEventListener(ev, onGesture, true); });
+  audio.addEventListener('playing', removeGestures);
+
+  btn.addEventListener('click', function () {
+    on = !on;
+    try { localStorage.setItem(KEY, on ? '1' : '0'); } catch (e) {}
+    label();
+    if (on) play(); else audio.pause();
+  });
+
+  /* Musik pausiert, wenn die App im Hintergrund ist */
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) audio.pause(); else play();
+  });
+
+  label();
+  play();
+})();
+</script>
+
+<script>
+/* ---------- Spielstand exportieren / importieren ---------- */
+(function () {
+  var msg = document.getElementById('saveMsg');
+  var fileInput = document.getElementById('saveFile');
+  function isGameKey(k) { return /^snake[-_]/.test(k); }
+
+  document.getElementById('saveExport').addEventListener('click', function () {
+    var data = {};
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (isGameKey(k)) data[k] = localStorage.getItem(k);
+      }
+    } catch (e) {
+      msg.textContent = 'Speicher nicht verfügbar, Export nicht möglich.';
+      return;
+    }
+    var payload = { app: 'snake-arcade', version: 1, exported: new Date().toISOString(), data: data };
+    var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'snake-spielstand-' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+    msg.textContent = 'Spielstand exportiert.';
+  });
+
+  document.getElementById('saveImport').addEventListener('click', function () { fileInput.click(); });
+
+  fileInput.addEventListener('change', function () {
+    var f = fileInput.files && fileInput.files[0];
+    fileInput.value = '';
+    if (!f) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      var payload;
+      try { payload = JSON.parse(reader.result); } catch (e) { payload = null; }
+      if (!payload || payload.app !== 'snake-arcade' || typeof payload.data !== 'object' || !payload.data) {
+        msg.textContent = 'Das ist keine gültige Spielstand-Datei.';
+        return;
+      }
+      if (!confirm('Aktuellen Spielstand durch die Datei ersetzen? Das lässt sich nicht rückgängig machen.')) return;
+      try {
+        var del = [];
+        for (var i = 0; i < localStorage.length; i++) {
+          if (isGameKey(localStorage.key(i))) del.push(localStorage.key(i));
+        }
+        del.forEach(function (k) { localStorage.removeItem(k); });
+        Object.keys(payload.data).forEach(function (k) {
+          if (isGameKey(k) && typeof payload.data[k] === 'string') localStorage.setItem(k, payload.data[k]);
+        });
+      } catch (e) {
+        msg.textContent = 'Import fehlgeschlagen: Speicher nicht verfügbar.';
+        return;
+      }
+      location.reload();
+    };
+    reader.readAsText(f);
+  });
+})();
+</script>
+
+<script>
+/* ---------- Web-App: offline-fähig machen (nur über https oder localhost) ---------- */
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  });
+}
+</script>
+
+</body></html>
