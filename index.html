@@ -761,19 +761,51 @@ h1 {
   .lyr-line.leaving { animation: none; opacity: 0; }
   .lyr-line.punch { animation: none; }
 }
-.lyr-box {
-  display: grid;
-  gap: 2px;
-  margin: 12px 0 8px;
-  padding: 10px 12px;
-  background: var(--bg);
-  border-radius: 10px;
-}
-.lyr-cur { margin: 0 0 8px; color: var(--muted); min-height: 1.5em; }
-.lyr-next { margin: 0; font: 700 1.05rem/1.35 var(--font-display); min-height: 2.7em; }
 .lyr-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 .lyr-btns .btn, .lyr-btns .hs-btn { flex: 1; }
-#lyrMark { flex: 2; min-height: 56px; font-size: 1.15rem; }
+
+/* word timing tool */
+.hs-card.wt-card { max-width: 560px; max-height: 92vh; }
+.wt-words {
+  max-height: 32vh;
+  overflow: auto;
+  margin: 10px 0;
+  padding: 10px;
+  background: var(--bg);
+  border-radius: 10px;
+  font: 500 1.05rem/2 var(--font-display);
+}
+.wt-w {
+  padding: 2px 5px;
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.wt-w.done { color: var(--fg); background: rgba(61, 219, 192, 0.14); }
+.wt-w.cur { color: var(--fg); outline: 2px solid var(--snake); outline-offset: 1px; font-weight: 700; }
+.wt-w.cur.rec { background: var(--tongue); color: #fff; outline-color: var(--tongue); }
+.wt-w.sing { background: var(--food); color: #1a1206; }
+.wt-row { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
+.wt-row input[type=range] { flex: 1; accent-color: var(--snake); min-height: 32px; }
+.wt-time { font: 700 0.875rem var(--font-mono); color: var(--muted); min-width: 4.5em; font-variant-numeric: tabular-nums; }
+.wt-transport { display: flex; gap: 6px; margin: 6px 0; }
+.wt-transport .hs-btn { flex: 1; padding: 0 6px; }
+.wt-transport .btn { flex: 1.6; padding: 0 8px; }
+.wt-hold {
+  width: 100%;
+  min-height: 76px;
+  margin: 8px 0 4px;
+  border: 2px dashed var(--snake);
+  border-radius: 14px;
+  background: transparent;
+  color: var(--fg);
+  font: 700 1.05rem var(--font-display);
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.wt-hold.active { background: var(--tongue); border-color: var(--tongue); color: #fff; }
 .lyr-out {
   width: 100%;
   margin-top: 10px;
@@ -916,7 +948,7 @@ h1 {
           <button class="hs-btn" id="lyricsBtn" type="button" aria-pressed="true">An</button>
         </div>
         <span class="ach-desc" id="lyricsHint"></span>
-        <div><button class="hs-btn" id="lyricsTime" type="button">Timing aufnehmen</button></div>
+        <div><button class="hs-btn" id="lyricsTime" type="button">Wort-Timing aufnehmen</button></div>
       </div>
       <div class="set-row">
         <span>Spielstand</span>
@@ -940,27 +972,36 @@ h1 {
     </div>
   </div>
 
-  <div class="hs-panel" id="lyrPanel" hidden role="dialog" aria-labelledby="lyrTitle">
-    <div class="hs-card">
-      <h2 id="lyrTitle">Untertitel-Timing</h2>
-      <p class="ach-desc">1. „Lied starten“ drücken. 2. Immer wenn die angezeigte nächste Zeile beginnt: „Jetzt!“ tippen (oder Leertaste). Vertippt? „Zurück“ (oder Rücktaste).</p>
-      <div class="lyr-box">
-        <span class="label">Gerade</span>
-        <p class="lyr-cur" id="lyrCur">–</p>
-        <span class="label">Als Nächstes</span>
-        <p class="lyr-next" id="lyrNext"></p>
+  <div class="hs-panel" id="wtPanel" hidden role="dialog" aria-labelledby="wtTitle">
+    <div class="hs-card wt-card">
+      <h2 id="wtTitle">Wort-Timing</h2>
+      <p class="ach-desc"><b>Leertaste gedrückt halten</b> (oder den großen Knopf), solange das markierte Wort gesungen wird: drücken = Anfang, loslassen = Ende. ←/→ spult 1 s (mit Umschalt 5 s), P = Pause, Rücktaste = Wort zurück. Auf ein Wort tippen springt dorthin.</p>
+      <div class="wt-words" id="wtWords"></div>
+      <div class="wt-row">
+        <span class="wt-time" id="wtTime">0:00.0</span>
+        <input type="range" id="wtSeek" min="0" max="100" step="0.1" value="0" aria-label="Position im Lied">
       </div>
-      <p class="ach-desc" id="lyrCount"></p>
+      <div class="wt-transport">
+        <button class="hs-btn" id="wtBack5" type="button" aria-label="5 Sekunden zurück">−5 s</button>
+        <button class="hs-btn" id="wtBack1" type="button" aria-label="1 Sekunde zurück">−1 s</button>
+        <button class="btn" id="wtPlay" type="button">▶ Play</button>
+        <button class="hs-btn" id="wtFwd1" type="button" aria-label="1 Sekunde vor">+1 s</button>
+        <button class="hs-btn" id="wtFwd5" type="button" aria-label="5 Sekunden vor">+5 s</button>
+      </div>
+      <div class="wt-row">
+        <label for="wtSpeed" class="label">Tempo</label>
+        <input type="range" id="wtSpeed" min="25" max="100" step="5" value="60">
+        <span class="wt-time" id="wtSpeedVal">60 %</span>
+      </div>
+      <button class="wt-hold" id="wtHold" type="button">Gedrückt halten, solange das Wort läuft</button>
+      <p class="ach-desc" id="wtCount"></p>
       <div class="lyr-btns">
-        <button class="hs-btn" id="lyrStart" type="button">Lied starten</button>
-        <button class="btn" id="lyrMark" type="button">Jetzt!</button>
-        <button class="hs-btn" id="lyrUndo" type="button">Zurück</button>
+        <button class="hs-btn" id="wtUndo" type="button">Wort zurück</button>
+        <button class="hs-btn" id="wtExport" type="button">Exportieren</button>
+        <button class="hs-btn" id="wtClear" type="button">Alles löschen</button>
       </div>
-      <textarea class="lyr-out" id="lyrOut" rows="3" readonly hidden></textarea>
-      <div class="lyr-btns">
-        <button class="hs-btn" id="lyrSave" type="button">Speichern</button>
-        <button class="btn hs-close" id="lyrClose" type="button" style="margin-top:0">Schließen</button>
-      </div>
+      <textarea class="lyr-out" id="wtOut" rows="4" readonly hidden></textarea>
+      <button class="btn hs-close" id="wtClose" type="button">Schließen</button>
     </div>
   </div>
 
@@ -3660,72 +3701,216 @@ h1 {
   }
   requestAnimationFrame(tick);
 
-  /* ----- Timing-Werkzeug: bei jeder neuen Zeile einmal tippen ----- */
-  var panel = document.getElementById('lyrPanel');
-  var curEl = document.getElementById('lyrCur');
-  var nextEl = document.getElementById('lyrNext');
-  var countEl = document.getElementById('lyrCount');
-  var markBtn = document.getElementById('lyrMark');
-  var out = document.getElementById('lyrOut');
-  var rec = [];
+  /* ----- Wort-Timing: Taste halten, solange ein Wort gesungen wird ----- */
+  var WORDS = [];
+  LINES.forEach(function (l) { l.split(/\s+/).forEach(function (w) { if (w) WORDS.push(w); }); });
+  var WKEY = 'snake_word_times';
+  var wt = [];
+  (function () {
+    try {
+      var d = JSON.parse(localStorage.getItem(WKEY));
+      if (d && d.n === WORDS.length && Array.isArray(d.t)) wt = d.t;
+    } catch (e) {}
+    for (var i = 0; i < WORDS.length; i++) if (!wt[i]) wt[i] = null;
+  })();
+  function firstOpen() { for (var i = 0; i < wt.length; i++) if (!wt[i]) return i; return WORDS.length; }
+  var ptr = firstOpen();
+  var holding = null;   // start time while the key/button is held
+  var speed = 0.6;
 
-  function renderRec() {
-    var i = rec.length;
-    countEl.textContent = i + ' / ' + LINES.length + ' Zeilen gesetzt';
-    curEl.textContent = i > 0 ? LINES[i - 1] : '–';
-    nextEl.textContent = i < LINES.length ? LINES[i] : 'Fertig! Drück auf „Speichern“.';
-    markBtn.disabled = i >= LINES.length;
+  var panel = document.getElementById('wtPanel');
+  var box = document.getElementById('wtWords');
+  var timeEl = document.getElementById('wtTime');
+  var seek = document.getElementById('wtSeek');
+  var playBtn = document.getElementById('wtPlay');
+  var speedIn = document.getElementById('wtSpeed');
+  var speedVal = document.getElementById('wtSpeedVal');
+  var holdBtn = document.getElementById('wtHold');
+  var countEl = document.getElementById('wtCount');
+  var out = document.getElementById('wtOut');
+
+  function au() { return window.snakeMusic.audio; }
+  function r2(v) { return Math.round(v * 100) / 100; }
+  function fmt(t) {
+    t = Math.max(0, t || 0);
+    var m = Math.floor(t / 60), sec = t - m * 60;
+    return m + ':' + (sec < 10 ? '0' : '') + sec.toFixed(1);
   }
+  function saveWT() {
+    try { localStorage.setItem(WKEY, JSON.stringify({ n: WORDS.length, t: wt })); } catch (e) {}
+  }
+
+  // all words as clickable chips
+  var spans = WORDS.map(function (w, i) {
+    var s = document.createElement('span');
+    s.className = 'wt-w';
+    s.textContent = w;
+    s.addEventListener('click', function () { jumpTo(i); });
+    box.appendChild(s);
+    box.appendChild(document.createTextNode(' '));
+    return s;
+  });
+
+  function refresh(scroll) {
+    var done = 0;
+    for (var i = 0; i < spans.length; i++) {
+      if (wt[i]) done++;
+      spans[i].classList.toggle('done', !!wt[i]);
+      spans[i].classList.toggle('cur', i === ptr);
+      spans[i].classList.toggle('rec', i === ptr && holding !== null);
+    }
+    holdBtn.classList.toggle('active', holding !== null);
+    holdBtn.textContent = ptr >= WORDS.length ? 'Alle Wörter erfasst – exportieren!' :
+      (holding !== null ? '● ' + WORDS[ptr] : 'Halten für: „' + WORDS[ptr] + '“');
+    countEl.textContent = done + ' / ' + WORDS.length + ' Wörter erfasst';
+    if (scroll && spans[ptr]) spans[ptr].scrollIntoView({ block: 'nearest' });
+  }
+
+  function seekTo(t) {
+    var a = au();
+    a.currentTime = Math.max(0, Math.min(t, (a.duration || 9999) - 0.05));
+  }
+  function jumpTo(i) {
+    holding = null;
+    ptr = i;
+    var ref = wt[i] ? wt[i][0] : (i > 0 && wt[i - 1] ? wt[i - 1][1] : au().currentTime);
+    seekTo(ref - 1.5);
+    refresh(true);
+  }
+  function togglePlay() {
+    var a = au();
+    if (a.paused) { var p = a.play(); if (p && p.catch) p.catch(function () {}); }
+    else a.pause();
+  }
+  function setSpeed(v) {
+    speed = v;
+    var a = au();
+    a.preservesPitch = true; a.webkitPreservesPitch = true;
+    a.playbackRate = v;
+    speedIn.value = Math.round(v * 100);
+    speedVal.textContent = Math.round(v * 100) + ' %';
+  }
+
+  function pressStart() {
+    if (ptr >= WORDS.length || holding !== null) return;
+    if (au().paused) togglePlay(); // pressing while paused starts playback right away
+    holding = au().currentTime;
+    refresh(false);
+  }
+  function pressEnd() {
+    if (holding === null) return;
+    var e = au().currentTime;
+    if (e <= holding) e = holding + 0.05;
+    wt[ptr] = [r2(holding), r2(e)];
+    holding = null;
+    ptr = ptr + 1;
+    saveWT();
+    refresh(true);
+  }
+  function undo() {
+    holding = null;
+    if (ptr <= 0) return;
+    ptr--;
+    var back = wt[ptr] ? wt[ptr][0] : au().currentTime;
+    wt[ptr] = null;
+    saveWT();
+    seekTo(back - 1.5);
+    refresh(true);
+  }
+
   function openTool() {
     document.getElementById('setPanel').hidden = true;
-    rec = [];
+    window.snakeMusic.turnOn();
+    var a = au();
+    a.pause();
+    setSpeed(speed);
+    ptr = firstOpen();
+    holding = null;
     out.hidden = true;
-    renderRec();
+    if (ptr < WORDS.length) jumpTo(ptr); else refresh(true);
     panel.hidden = false;
+    requestAnimationFrame(toolLoop);
   }
-  function startSong() {
-    var m = window.snakeMusic;
-    rec = [];
-    renderRec();
-    m.turnOn();
-    m.audio.currentTime = 0;
-    var p = m.audio.play();
-    if (p && p.catch) p.catch(function () {});
+  function closeTool() {
+    holding = null;
+    panel.hidden = true;
+    var a = au();
+    a.playbackRate = 1;
+    if (window.snakeMusic.isOn() && a.paused) { var p = a.play(); if (p && p.catch) p.catch(function () {}); }
   }
-  function mark() {
-    var m = window.snakeMusic;
-    if (rec.length >= LINES.length || m.audio.paused) return;
-    rec.push(Math.round(m.audio.currentTime * 100) / 100);
-    renderRec();
-  }
-  function save() {
-    if (rec.length !== LINES.length) {
-      countEl.textContent = 'Erst alle ' + LINES.length + ' Zeilen setzen (' + rec.length + ' gesetzt).';
-      return;
+
+  // while open: time display, seek bar, play button and live preview of recorded words
+  var lastSing = -1;
+  function toolLoop() {
+    if (panel.hidden) return;
+    var a = au();
+    var t = a.currentTime;
+    timeEl.textContent = fmt(t);
+    if (a.duration && document.activeElement !== seek) { seek.max = a.duration.toFixed(1); seek.value = t; }
+    playBtn.textContent = a.paused ? '▶ Play' : '❚❚ Pause';
+    var sing = -1;
+    for (var i = 0; i < wt.length; i++) if (wt[i] && t >= wt[i][0] && t < wt[i][1]) { sing = i; break; }
+    if (sing !== lastSing) {
+      if (lastSing >= 0) spans[lastSing].classList.remove('sing');
+      if (sing >= 0) spans[sing].classList.add('sing');
+      lastSing = sing;
     }
-    times = rec.slice();
-    try { localStorage.setItem(TKEY, JSON.stringify({ v: TIMES_ID, t: times })); } catch (e) {}
-    renderSettings();
-    out.value = JSON.stringify(times);
-    out.hidden = false;
-    out.select();
-    countEl.textContent = 'Gespeichert. Kopiere die Zahlen unten und schick sie mir, dann baue ich sie fest ein.';
+    requestAnimationFrame(toolLoop);
   }
 
   document.getElementById('lyricsTime').addEventListener('click', openTool);
-  document.getElementById('lyrStart').addEventListener('click', startSong);
-  markBtn.addEventListener('click', mark);
-  document.getElementById('lyrUndo').addEventListener('click', function () { rec.pop(); renderRec(); });
-  document.getElementById('lyrSave').addEventListener('click', save);
-  document.getElementById('lyrClose').addEventListener('click', function () { panel.hidden = true; });
+  document.getElementById('wtClose').addEventListener('click', closeTool);
+  playBtn.addEventListener('click', togglePlay);
+  document.getElementById('wtBack5').addEventListener('click', function () { seekTo(au().currentTime - 5); });
+  document.getElementById('wtBack1').addEventListener('click', function () { seekTo(au().currentTime - 1); });
+  document.getElementById('wtFwd1').addEventListener('click', function () { seekTo(au().currentTime + 1); });
+  document.getElementById('wtFwd5').addEventListener('click', function () { seekTo(au().currentTime + 5); });
+  seek.addEventListener('input', function () { seekTo(parseFloat(seek.value) || 0); });
+  speedIn.addEventListener('input', function () { setSpeed((parseInt(speedIn.value, 10) || 60) / 100); });
+  document.getElementById('wtUndo').addEventListener('click', undo);
+  document.getElementById('wtClear').addEventListener('click', function () {
+    if (!confirm('Alle erfassten Wort-Zeiten löschen?')) return;
+    for (var i = 0; i < wt.length; i++) wt[i] = null;
+    saveWT();
+    jumpTo(0);
+  });
+  document.getElementById('wtExport').addEventListener('click', function () {
+    var txt = JSON.stringify(wt);
+    out.value = txt;
+    out.hidden = false;
+    out.select();
+    var done = wt.filter(Boolean).length;
+    var msg = done + ' / ' + WORDS.length + ' Wörter. ';
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(function () {
+        countEl.textContent = msg + 'In die Zwischenablage kopiert – schick es mir.';
+      }, function () { countEl.textContent = msg + 'Text unten markieren und kopieren.'; });
+    } else countEl.textContent = msg + 'Text unten markieren und kopieren.';
+  });
 
-  // während das Werkzeug offen ist: Leertaste/Enter setzen die Zeile, das Spiel bekommt die Tasten nicht
+  // the big button: press = word starts, release = word ends
+  holdBtn.addEventListener('pointerdown', function (e) {
+    e.preventDefault();
+    if (holdBtn.setPointerCapture) holdBtn.setPointerCapture(e.pointerId);
+    pressStart();
+  });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (ev) { holdBtn.addEventListener(ev, pressEnd); });
+
+  // keyboard while the tool is open; the game does not get these keys
   document.addEventListener('keydown', function (e) {
     if (panel.hidden) return;
     if (e.target && e.target.tagName === 'TEXTAREA') return;
-    if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); mark(); }
-    else if (e.code === 'Backspace') { e.preventDefault(); rec.pop(); renderRec(); }
-    else if (e.code === 'Escape') panel.hidden = true;
+    if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) pressStart(); }
+    else if (e.code === 'ArrowLeft') { e.preventDefault(); seekTo(au().currentTime - (e.shiftKey ? 5 : 1)); }
+    else if (e.code === 'ArrowRight') { e.preventDefault(); seekTo(au().currentTime + (e.shiftKey ? 5 : 1)); }
+    else if (e.code === 'KeyP' || e.code === 'Enter') { e.preventDefault(); togglePlay(); }
+    else if (e.code === 'Backspace') { e.preventDefault(); undo(); }
+    else if (e.code === 'Escape') closeTool();
+    e.stopPropagation();
+  }, true);
+  document.addEventListener('keyup', function (e) {
+    if (panel.hidden) return;
+    if (e.code === 'Space') { e.preventDefault(); pressEnd(); }
     e.stopPropagation();
   }, true);
 })();
