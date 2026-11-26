@@ -724,42 +724,148 @@ h1 {
   padding: 0 4px;
 }
 .lyr-line.leaving { animation: lyr-out 0.35s ease-in forwards; }
-.lyr-line.punch { animation: lyr-punch 0.45s ease-out; }
+/* a line with a single word (the shouted „Hurensohn“s) is bigger */
+.lyr-line.solo { font-size: 1.45em; }
+
+/* karaoke: every word fills with the line's colours from left to right while it is sung (--p) */
 .lyr-w {
   display: inline-block;
-  color: rgba(230, 235, 245, 0.42);
   opacity: 0;
-  animation: lyr-in 0.5s cubic-bezier(0.2, 1.5, 0.4, 1) forwards;
-  animation-delay: calc(var(--i) * 45ms);
-  transition: scale 0.15s ease-out, filter 0.2s;
-}
-/* karaoke: words light up in the line's colours while they are sung */
-.lyr-w.hit {
-  background: linear-gradient(100deg, var(--c1), var(--c2));
+  background:
+    linear-gradient(100deg, var(--c1), var(--c2)) 0 0 / var(--p, 0%) 100% no-repeat,
+    linear-gradient(rgba(230, 235, 245, 0.4), rgba(230, 235, 245, 0.4));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  scale: 1.05;
-  filter: drop-shadow(0 0 8px var(--c1));
+  animation: lyr-in 0.5s cubic-bezier(0.2, 1.5, 0.4, 1) forwards;
+  animation-delay: calc(var(--i) * 45ms);
+  transition: scale 0.12s ease-out, filter 0.2s;
 }
+.lyr-w.sing { scale: 1.14; filter: drop-shadow(0 0 10px var(--c1)); }
+.lyr-w.done { filter: drop-shadow(0 0 5px var(--c1)); }
+.solo .lyr-w.sing { scale: 1.2; animation: lyr-in 0.5s cubic-bezier(0.2, 1.5, 0.4, 1) forwards, lyr-wobble 0.3s ease-in-out infinite; animation-delay: calc(var(--i) * 45ms), 0s; }
+
+/* „deine Scheiß haus“: its own stage with a glowing frame */
+.sh-phrase {
+  --c1: #c98a4a;
+  --c2: #ffd27a;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  padding: 0.02em 0.4em 0.08em;
+  border-radius: 14px;
+  background: radial-gradient(ellipse at 50% 60%, rgba(255, 122, 26, 0.22), rgba(90, 50, 20, 0.35));
+  box-shadow: 0 0 0 2px rgba(255, 170, 60, 0.55), 0 0 18px rgba(255, 106, 26, 0.45);
+  animation: sh-frame 1.2s ease-in-out infinite;
+}
+.sh-side { font-style: italic; }
+.sh-side.sing { scale: 1.12; rotate: -3deg; }
+/* „Scheiß“: fire gradient, RGB glitch, explodes and shakes while sung, then keeps flickering */
+.sh-boom {
+  font-size: 1.3em;
+  letter-spacing: 0.02em;
+  background:
+    linear-gradient(100deg, #fff3a0, #ffb000 35%, #ff4a1a 70%, #c2006a) 0 0 / var(--p, 0%) 100% no-repeat,
+    linear-gradient(rgba(255, 210, 150, 0.45), rgba(255, 210, 150, 0.45));
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+.sh-boom.sing {
+  scale: 1.4;
+  filter: drop-shadow(-2px 0 #ff2a6d) drop-shadow(2px 0 #05d9e8) drop-shadow(0 0 14px #ff7a1a);
+  animation: lyr-in 0.5s cubic-bezier(0.2, 1.5, 0.4, 1) forwards, sh-boom 0.55s ease-out, sh-shake 0.07s linear infinite;
+  animation-delay: calc(var(--i) * 45ms), 0s, 0s;
+}
+.sh-boom.done {
+  scale: 1.22;
+  filter: drop-shadow(-1px 0 #ff2a6d) drop-shadow(1px 0 #05d9e8) drop-shadow(0 0 10px #ff7a1a);
+  animation: lyr-in 0.5s cubic-bezier(0.2, 1.5, 0.4, 1) forwards, sh-flicker 0.9s steps(2) infinite;
+  animation-delay: calc(var(--i) * 45ms), 0s;
+}
+/* played backwards in the song, so the phrase is shown mirrored in purple */
+.sh-phrase.rev {
+  --c1: #b388ff;
+  --c2: #05d9e8;
+  transform: scaleX(-1);
+  background: radial-gradient(ellipse at 50% 60%, rgba(122, 92, 255, 0.28), rgba(30, 20, 70, 0.4));
+  box-shadow: 0 0 0 2px rgba(179, 136, 255, 0.6), 0 0 18px rgba(122, 92, 255, 0.5);
+  animation-name: sh-frame-rev;
+}
+@keyframes sh-frame-rev {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(179, 136, 255, 0.55), 0 0 14px rgba(122, 92, 255, 0.35); }
+  50% { box-shadow: 0 0 0 2px rgba(5, 217, 232, 0.9), 0 0 26px rgba(122, 92, 255, 0.75); }
+}
+.sh-phrase.rev .sh-boom { filter: hue-rotate(220deg); }
+.sh-phrase.rev .sh-boom.sing { filter: hue-rotate(220deg) drop-shadow(0 0 14px #7a5cff); }
+
+/* flying emoji and sparks from the explosion */
+.lyric { z-index: 3; }
+.sh-bit {
+  position: absolute;
+  z-index: 5;
+  font-size: 1.1em;
+  line-height: 1;
+  pointer-events: none;
+  animation: sh-fly 0.95s cubic-bezier(0.15, 0.7, 0.3, 1) forwards;
+}
+.sh-bit.spark {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ffd23f;
+  box-shadow: 0 0 8px #ff7a1a;
+}
+.lyric.quake { animation: lyr-quake 0.45s linear; }
+
 @keyframes lyr-in {
   0% { opacity: 0; translate: 0 0.7em; scale: 0.6; filter: blur(4px); }
-  /* end values come from the normal styles, so .hit can still scale and glow */
+  /* end values come from the normal styles, so .sing can still scale and glow */
   100% { opacity: 1; }
 }
 @keyframes lyr-out {
   to { opacity: 0; translate: 0 -0.8em; scale: 0.92; filter: blur(3px); }
 }
-@keyframes lyr-punch {
-  0% { scale: 1; }
-  25% { scale: 1.12; rotate: -2deg; }
-  50% { rotate: 2deg; }
-  100% { scale: 1; rotate: 0deg; }
+@keyframes lyr-wobble {
+  0%, 100% { rotate: -3deg; }
+  50% { rotate: 3deg; }
+}
+@keyframes sh-frame {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(255, 170, 60, 0.55), 0 0 14px rgba(255, 106, 26, 0.35); }
+  50% { box-shadow: 0 0 0 2px rgba(255, 210, 120, 0.9), 0 0 26px rgba(255, 106, 26, 0.7); }
+}
+@keyframes sh-boom {
+  0% { scale: 0.9; rotate: 0deg; }
+  35% { scale: 1.85; rotate: -7deg; }
+  65% { scale: 1.3; rotate: 5deg; }
+  100% { scale: 1.4; rotate: 0deg; }
+}
+@keyframes sh-shake {
+  0% { translate: 1px -1px; }
+  25% { translate: -2px 1px; }
+  50% { translate: 2px 2px; }
+  75% { translate: -1px -2px; }
+  100% { translate: 1px 0; }
+}
+@keyframes sh-flicker {
+  0% { opacity: 1; }
+  100% { opacity: 0.82; }
+}
+@keyframes sh-fly {
+  from { opacity: 1; transform: translate(-50%, -50%) scale(0.4); }
+  to { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) rotate(var(--rot)) scale(1.35); }
+}
+@keyframes lyr-quake {
+  0%, 100% { translate: 0 0; }
+  15% { translate: -6px 2px; }
+  30% { translate: 5px -3px; }
+  45% { translate: -4px 3px; }
+  60% { translate: 3px -2px; }
+  80% { translate: -2px 1px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .lyr-w { animation: none; opacity: 1; }
+  .lyr-w, .solo .lyr-w.sing, .sh-boom.sing, .sh-boom.done { animation: none; opacity: 1; }
   .lyr-line.leaving { animation: none; opacity: 0; }
-  .lyr-line.punch { animation: none; }
+  .sh-phrase, .lyric.quake { animation: none; }
 }
 .lyr-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 .lyr-btns .btn, .lyr-btns .hs-btn { flex: 1; }
@@ -3589,36 +3695,39 @@ h1 {
     'Levin, du Hurensohn!',
     'Dein Scheiß haus kommt sprengen, okay?'
   ];
-  // Startzeit jeder Zeile in Sekunden. Wird nach dem Timing fest eingetragen;
-  // bis dahin gilt das lokal aufgenommene Timing (localStorage).
-  // Um eine Zeile verschoben: jede Zeile startet dort, wo vorher die Zeile davor eingetragen war.
-  // Der Start der ersten Zeile (10.5) ist geschätzt.
-  var TIMES = [10.5, 13.24, 16.31, 19.88, 21.79, 23.53, 28.75, 32.24, 33.52, 37.25, 40.69, 45.58, 50.04, 52, 55.59, 61.18, 63.8, 67.01, 69.7, 71.64];
-  var TIMES_ID = 2; // hochzählen, wenn TIMES geändert wird: ältere lokale Aufnahmen werden dann ignoriert
-  var MAX_SHOW = 7; // Zeile höchstens so viele Sekunden zeigen (Instrumental-Pausen)
+  // Anfang und Ende jedes Worts in Sekunden (mit dem Wort-Timing-Werkzeug aufgenommen).
+  // Wörter 62–65 („Scheiß haus, lass mich“ bei 0:38) waren widersprüchlich und sind geschätzt.
+  var WT = [[13.63,14.02],[14.13,14.27],[14.43,14.83],[15.02,15.4],[15.49,15.61],[15.77,15.92],[15.99,16.23],[16.32,16.65],[16.72,17.25],[17.45,17.68],[17.72,17.98],[18.03,18.15],[18.19,18.29],[18.35,18.99],[19.04,19.27],[19.35,19.81],[19.84,20.36],[20.39,20.65],[20.68,20.94],[21,21.14],[21.17,21.27],[21.29,21.46],[21.52,22.02],[22.51,22.73],[22.79,22.92],[22.96,23.08],[23.12,23.36],[23.41,23.48],[23.51,23.56],[23.59,23.75],[23.79,23.88],[23.94,24.29],[25.16,25.98],[27.11,28.18],[28.57,28.77],[28.8,29.32],[29.34,29.8],[30.55,30.76],[30.81,30.96],[30.98,31.04],[31.07,31.3],[31.32,31.48],[31.5,31.57],[31.63,31.75],[31.77,31.96],[32,32.3],[32.49,32.53],[32.57,33.22],[33.34,33.46],[33.48,33.99],[34.08,34.33],[34.82,34.99],[35.05,35.18],[35.2,35.31],[35.34,35.65],[35.68,36.02],[36.07,36.53],[36.73,37.09],[37.13,37.5],[37.61,38.07],[38.1,38.34],[38.54,38.69],[38.7,38.88],[38.89,38.98],[38.99,39.06],[39.07,39.13],[39.15,39.47],[39.49,39.66],[39.68,39.72],[39.74,39.94],[39.96,40.05],[40.08,40.17],[40.24,40.34],[40.36,40.46],[40.49,40.99],[41.56,42.46],[43.65,44.37],[44.52,44.77],[44.79,44.96],[44.98,45.67],[46.13,46.76],[47.12,47.44],[47.48,47.77],[47.87,48.22],[49.21,50.05],[50.43,50.68],[50.72,50.9],[50.93,51.51],[51.83,52.07],[52.1,52.27],[52.28,52.43],[52.45,52.7],[52.73,53.11],[53.14,53.62],[53.84,54.11],[54.14,54.27],[54.29,54.43],[54.45,54.66],[54.68,55.19],[55.21,55.61],[56.79,56.98],[57,57.34],[57.4,57.92],[58.24,58.45],[58.5,58.66],[58.68,58.93],[58.95,59.04],[59.06,59.25],[59.3,59.9],[59.96,60.19],[60.29,60.77],[60.82,61.31],[61.33,61.66],[61.7,62.03],[62.15,62.26],[62.28,62.8],[62.86,63.18],[63.27,63.69],[63.73,64.2],[64.25,64.44],[64.88,65.52],[65.74,66.38],[66.86,67.54],[67.94,68.19],[68.66,68.78],[68.81,69.43],[70.66,70.93],[70.97,71.12],[71.15,71.78],[71.88,71.94],[71.97,72.62],[72.66,72.95],[73.03,73.46],[73.49,73.98],[74.01,74.25]];
 
-  var TKEY = 'snake_lyrics_times', SKEY = 'snake_lyrics_on';
-  function loadTimes() {
-    // a local recording only wins if it was made for the current built-in timing
-    try {
-      var t = JSON.parse(localStorage.getItem(TKEY));
-      if (t && t.v === TIMES_ID && Array.isArray(t.t) && t.t.length === LINES.length) return t.t;
-    } catch (e) {}
-    return TIMES;
-  }
-  var times = loadTimes();
+  // Anzeige-Zeilen als Wortbereiche [erstes, letztes], gebildet aus den Pausen im Gesang
+  var GROUPS = [
+    [0, 2], [3, 8], [9, 14], [15, 17], [18, 22], [23, 31], [32, 32], [33, 33], [34, 36],
+    [37, 45], [46, 47], [48, 50], [51, 56], [57, 60], [61, 63], [64, 69], [70, 74],
+    [75, 75], [76, 76], [77, 79], [80, 80], [81, 83], [84, 84], [85, 87], [88, 93],
+    [94, 99], [100, 102], [103, 109], [110, 112], [113, 116], [117, 119], [120, 122],
+    [123, 125], [126, 128], [129, 134]
+  ];
+  var LEAD = 0.35;  // Zeile erscheint so viel vor dem ersten Wort
+  var HOLD = 1.2;   // und bleibt nach dem letzten Wort höchstens so lange
+
+  var WORDS_ALL = [];
+  LINES.forEach(function (l) { l.split(/\s+/).forEach(function (w) { if (w) WORDS_ALL.push(w); }); });
+  function bare(w) { return w.toLowerCase().replace(/[^a-zäöüß]/g, ''); }
+
+  var SKEY = 'snake_lyrics_on';
   var show = true;
   try { if (localStorage.getItem(SKEY) === '0') show = false; } catch (e) {}
 
   var lineEl = document.getElementById('lyricLine');
   var toggle = document.getElementById('lyricsBtn');
   var hint = document.getElementById('lyricsHint');
+  var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   function renderSettings() {
     toggle.textContent = show ? 'An' : 'Aus';
     toggle.setAttribute('aria-pressed', show ? 'true' : 'false');
-    hint.textContent = times ? 'Timing vorhanden. Du kannst es jederzeit neu aufnehmen.' : 'Noch kein Timing – nimm es einmal auf, dann laufen die Untertitel mit.';
-    lineEl.hidden = !(show && times);
+    hint.textContent = 'Wort-genaues Timing ist eingebaut. Mit dem Werkzeug kannst du es neu aufnehmen und mir schicken.';
+    lineEl.hidden = !show;
   }
   toggle.addEventListener('click', function () {
     show = !show;
@@ -3627,13 +3736,15 @@ h1 {
   });
   renderSettings();
 
-  function lineAt(t) {
-    if (!times) return -1;
-    var idx = -1;
-    for (var i = 0; i < times.length; i++) if (times[i] <= t) idx = i;
-    if (idx < 0) return -1;
-    var end = idx + 1 < times.length ? times[idx + 1] : times[idx] + MAX_SHOW;
-    return t < Math.min(end, times[idx] + MAX_SHOW) ? idx : -1;
+  function groupAt(t) {
+    for (var g = GROUPS.length - 1; g >= 0; g--) {
+      var s = WT[GROUPS[g][0]][0] - LEAD;
+      if (t < s) continue;
+      var next = g + 1 < GROUPS.length ? WT[GROUPS[g + 1][0]][0] - LEAD : Infinity;
+      var end = Math.min(next, WT[GROUPS[g][1]][1] + HOLD);
+      return t < end ? g : -1;
+    }
+    return -1;
   }
 
   // colour pairs, one per line, cycling
@@ -3642,59 +3753,100 @@ h1 {
     ['#7a5cff', '#ff4fd8'], ['#46e36a', '#f6f23d'], ['#35c8ff', '#7a5cff'], ['#ff7a3d', '#ffe566']
   ];
 
-  var shown = -2, curLine = null, words = [], weights = [];
-  function render(idx) {
-    // the old line flies out, then is removed
+  var shown = -2, curLine = null, items = [];
+  function render(g) {
     if (curLine) {
       var old = curLine;
-      old.classList.remove('punch');
       old.classList.add('leaving');
       setTimeout(function () { old.remove(); }, 400);
       curLine = null;
     }
-    words = []; weights = [];
-    if (idx < 0) return;
-    var col = COLORS[idx % COLORS.length];
+    items = [];
+    if (g < 0) return;
+    var a = GROUPS[g][0], b = GROUPS[g][1];
+    var col = COLORS[g % COLORS.length];
     var el = document.createElement('span');
-    el.className = 'lyr-line' + (/!\s*$/.test(LINES[idx]) ? ' punch' : '');
+    el.className = 'lyr-line' + (b === a ? ' solo' : '');
     el.style.setProperty('--c1', col[0]);
     el.style.setProperty('--c2', col[1]);
-    var parts = LINES[idx].split(/\s+/);
-    var total = 0;
-    parts.forEach(function (w, i) {
-      var s = document.createElement('span');
-      s.className = 'lyr-w';
-      s.style.setProperty('--i', i);
-      s.textContent = w;
-      el.appendChild(s);
-      words.push(s);
-      total += w.length + 1;
-      weights.push(total);
-    });
-    for (var k = 0; k < weights.length; k++) weights[k] /= total;
+    var n = 0;
+    for (var i = a; i <= b; i++) {
+      // „deine/dein Scheiß haus“ (auch rückwärts: „suah ßieiscH enieD“) bekommt eine eigene Bühne
+      var w0 = bare(WORDS_ALL[i]);
+      var fwd = (w0 === 'deine' || w0 === 'dein') && i + 2 <= b && bare(WORDS_ALL[i + 1]) === 'scheiß' && bare(WORDS_ALL[i + 2]) === 'haus';
+      var rev = w0 === 'suah' && i + 2 <= b && bare(WORDS_ALL[i + 1]) === 'ßieisch' && bare(WORDS_ALL[i + 2]) === 'enied';
+      var parent = el;
+      var len = 1;
+      if (fwd || rev) {
+        parent = document.createElement('span');
+        parent.className = 'sh-phrase' + (rev ? ' rev' : '');
+        el.appendChild(parent);
+        len = 3;
+      }
+      for (var k = 0; k < len; k++) {
+        var idx = i + k;
+        var s = document.createElement('span');
+        var isScheiss = (fwd && k === 1) || (rev && k === 1);
+        s.className = 'lyr-w' + (len === 3 ? (isScheiss ? ' sh-boom' : ' sh-side') : '');
+        s.style.setProperty('--i', n++);
+        s.textContent = WORDS_ALL[idx];
+        parent.appendChild(s);
+        items.push({ el: s, i: idx, boom: isScheiss, fired: false, state: '' });
+      }
+      i += len - 1;
+    }
     lineEl.appendChild(el);
     curLine = el;
   }
 
+  // explosion for „Scheiß“: emoji and sparks fly out, the subtitle area shakes
+  var BOOM = ['💩', '💥', '🔥', '💩', '✨', '💥', '🧨', '💩'];
+  function explode(wordEl) {
+    if (reduced) return;
+    var r = wordEl.getBoundingClientRect(), box = lineEl.getBoundingClientRect();
+    var cx = r.left + r.width / 2 - box.left, cy = r.top + r.height / 2 - box.top;
+    for (var q = 0; q < 12; q++) {
+      var p = document.createElement('span');
+      p.className = 'sh-bit';
+      p.textContent = q < 8 ? BOOM[q] : '';
+      if (q >= 8) p.classList.add('spark');
+      var ang = (q / 12) * Math.PI * 2 + Math.random() * 0.5;
+      var dist = 50 + Math.random() * 60;
+      p.style.left = cx + 'px';
+      p.style.top = cy + 'px';
+      p.style.setProperty('--dx', Math.cos(ang) * dist + 'px');
+      p.style.setProperty('--dy', Math.sin(ang) * dist * 0.7 - 20 + 'px');
+      p.style.setProperty('--rot', (Math.random() * 360 - 180) + 'deg');
+      lineEl.appendChild(p);
+      (function (node) { setTimeout(function () { node.remove(); }, 1000); })(p);
+    }
+    lineEl.classList.remove('quake');
+    void lineEl.offsetWidth; // restart the animation
+    lineEl.classList.add('quake');
+  }
+
   function tick() {
     var m = window.snakeMusic;
-    var idx = -1, t = 0;
-    if (m && show && times && m.isOn() && !m.audio.paused) {
+    var g = -1, t = 0;
+    if (m && show && m.isOn() && !m.audio.paused) {
       t = m.audio.currentTime;
-      idx = lineAt(t);
+      g = groupAt(t);
     }
-    if (idx !== shown) {
-      shown = idx;
-      render(idx);
+    if (g !== shown) {
+      shown = g;
+      render(g);
     }
-    if (idx >= 0 && words.length) {
-      // light the words up in step with the line: spread over its duration, weighted by word length
-      var start = times[idx];
-      var end = idx + 1 < times.length ? Math.min(times[idx + 1], start + MAX_SHOW) : start + MAX_SHOW;
-      var p = (t - start) / Math.max(0.3, (end - start) * 0.85);
-      for (var i = 0; i < words.length; i++) {
-        var on = p >= (i ? weights[i - 1] : 0);
-        if (on !== words[i].classList.contains('hit')) words[i].classList.toggle('hit', on);
+    // each word fills with colour from left to right exactly while it is sung
+    for (var k = 0; k < items.length; k++) {
+      var it = items[k], w = WT[it.i];
+      var p = t <= w[0] ? 0 : (t >= w[1] ? 1 : (t - w[0]) / (w[1] - w[0]));
+      var state = p <= 0 ? '' : (p < 1 ? 'sing' : 'done');
+      it.el.style.setProperty('--p', (p * 100).toFixed(1) + '%');
+      if (state !== it.state) {
+        it.el.classList.toggle('sing', state === 'sing');
+        it.el.classList.toggle('done', state === 'done');
+        it.state = state;
+        if (state === 'sing' && it.boom && !it.fired) { it.fired = true; explode(it.el); }
       }
     }
     requestAnimationFrame(tick);
