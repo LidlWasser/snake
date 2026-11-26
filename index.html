@@ -1054,6 +1054,12 @@ h1 {
           <button class="hs-btn" id="lyricsBtn" type="button" aria-pressed="true">An</button>
         </div>
         <span class="ach-desc" id="lyricsHint"></span>
+        <div class="set-head">
+          <label for="lyricsOffset">Versatz</label>
+          <span class="set-val" id="lyricsOffsetVal">0,00 s</span>
+        </div>
+        <input type="range" id="lyricsOffset" min="-1.5" max="1.5" step="0.05" value="0">
+        <span class="ach-desc">Nach rechts = Untertitel kommen früher, nach links = später. Am besten bei laufendem Lied einstellen.</span>
         <div><button class="hs-btn" id="lyricsTime" type="button">Wort-Timing aufnehmen</button></div>
       </div>
       <div class="set-row">
@@ -3736,6 +3742,27 @@ h1 {
   });
   renderSettings();
 
+  // global offset in seconds: positive = subtitles come earlier
+  var OFFSET_DEFAULT = 0;
+  var offset = OFFSET_DEFAULT;
+  try {
+    var so = parseFloat(localStorage.getItem('snake_lyrics_offset'));
+    if (!isNaN(so)) offset = so;
+  } catch (e) {}
+  var offIn = document.getElementById('lyricsOffset');
+  var offVal = document.getElementById('lyricsOffsetVal');
+  function renderOffset() {
+    offIn.value = offset;
+    offVal.textContent = (offset > 0 ? '+' : '') + offset.toFixed(2).replace('.', ',') + ' s' +
+      (offset > 0 ? ' früher' : (offset < 0 ? ' später' : ''));
+  }
+  offIn.addEventListener('input', function () {
+    offset = Math.round(parseFloat(offIn.value) * 100) / 100 || 0;
+    try { localStorage.setItem('snake_lyrics_offset', String(offset)); } catch (e) {}
+    renderOffset();
+  });
+  renderOffset();
+
   function groupAt(t) {
     for (var g = GROUPS.length - 1; g >= 0; g--) {
       var s = WT[GROUPS[g][0]][0] - LEAD;
@@ -3829,7 +3856,7 @@ h1 {
     var m = window.snakeMusic;
     var g = -1, t = 0;
     if (m && show && m.isOn() && !m.audio.paused) {
-      t = m.audio.currentTime;
+      t = m.audio.currentTime + offset;
       g = groupAt(t);
     }
     if (g !== shown) {
